@@ -39,47 +39,36 @@ class VideoGrid extends StatefulWidget {
 }
 
 class _VideoGridState extends State<VideoGrid> {
-  int _pinnedUid = 0; // The UID of the user in the large slot
+  int _pinnedUid = 0;
 
   @override
   void initState() {
     super.initState();
-    // Initialize pinned UID
-    _updatePinnedUid(widget.remoteUids, widget.localUid, widget.isHost, widget.remoteRoles);
+    _updatePinnedUid();
   }
 
   @override
   void didUpdateWidget(VideoGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Update pinned UID whenever remote UIDs or role changes happen
     if (widget.remoteUids != oldWidget.remoteUids ||
-        widget.isHost != oldWidget.isHost ||
-        widget.remoteRoles != oldWidget.remoteRoles) {
-      _updatePinnedUid(widget.remoteUids, widget.localUid, widget.isHost, widget.remoteRoles);
+        widget.remoteRoles != oldWidget.remoteRoles ||
+        widget.isHost != oldWidget.isHost) {
+      _updatePinnedUid();
     }
   }
 
-  // Determines the default large view (first broadcaster, then local user).
-  void _updatePinnedUid(List<int> remoteUids, int localUid, bool isHost, Map<int, ClientRoleType> remoteRoles) {
-    int newPinnedUid = 0;
-
-    // 1. Prioritize pinning the first available remote Broadcaster (the active speaker).
-    final remoteBroadcasters = remoteUids.where(
-            (uid) => remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster);
-
+  void _updatePinnedUid() {
+    int newPinned = 0;
+    final remoteBroadcasters = widget.remoteUids.where(
+      (uid) => widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster,
+    );
     if (remoteBroadcasters.isNotEmpty) {
-      newPinnedUid = remoteBroadcasters.first;
+      newPinned = remoteBroadcasters.first;
+    } else {
+      newPinned = widget.localUid;
     }
-
-    // 2. Fallback: If no remote broadcasters are present, pin the local user.
-    if (newPinnedUid == 0) {
-      newPinnedUid = localUid;
-    }
-
-    if (newPinnedUid != _pinnedUid) {
-      setState(() {
-        _pinnedUid = newPinnedUid;
-      });
+    if (newPinned != _pinnedUid) {
+      setState(() => _pinnedUid = newPinned);
     }
   }
 
@@ -88,24 +77,20 @@ class _VideoGridState extends State<VideoGrid> {
     required bool isLocal,
     double borderRadius = 12,
   }) {
-    // Determine the mute state
     final isTileAudioMuted = isLocal
         ? widget.isMicMuted
-        : widget.remoteMuteStatus[uid]?['audio'] ?? false; // Default to unmuted
+        : widget.remoteMuteStatus[uid]?['audio'] ?? false;
     final isTileVideoOff = isLocal
         ? widget.isCameraOff
-        : widget.remoteMuteStatus[uid]?['video'] ?? false; // Default to video on
+        : widget.remoteMuteStatus[uid]?['video'] ?? false;
 
-    final isBroadcaster = isLocal
-        ? widget.isHost || (widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster && isLocal == false)
-        : widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster;
+    final isBroadcaster =
+        widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster;
     final displayName = widget.userNames[uid] ?? 'User $uid';
     final hasRaisedHand = widget.raisedHands[uid] ?? false;
 
-    // Determine the video rendering widget
     Widget videoWidget;
     if (widget.engine == null || isTileVideoOff) {
-      // Placeholder: Display name on a colored background if video is off
       videoWidget = Center(
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -132,37 +117,30 @@ class _VideoGridState extends State<VideoGrid> {
         ),
       );
     } else {
-      // Actual Video View
       videoWidget = isLocal
           ? agora.AgoraVideoView(
-        controller: agora.VideoViewController(
-          rtcEngine: widget.engine!,
-          canvas: const agora.VideoCanvas(uid: 0),
-        ),
-      )
+              controller: agora.VideoViewController(
+                rtcEngine: widget.engine!,
+                canvas: const agora.VideoCanvas(uid: 0),
+              ),
+            )
           : agora.AgoraVideoView(
-        controller: agora.VideoViewController.remote(
-          rtcEngine: widget.engine!,
-          canvas: agora.VideoCanvas(uid: uid),
-          connection: agora.RtcConnection(channelId: widget.channelName),
-        ),
-      );
+              controller: agora.VideoViewController.remote(
+                rtcEngine: widget.engine!,
+                canvas: agora.VideoCanvas(uid: uid),
+                connection: agora.RtcConnection(channelId: widget.channelName),
+              ),
+            );
     }
 
     return GestureDetector(
       onTap: () {
-        if (_pinnedUid == uid) return; // Already pinned, do nothing
-
-        // Manual pin is allowed for all users (Host or Participant).
-        setState(() {
-          _pinnedUid = uid; // New pinned UID
-        });
+        if (_pinnedUid != uid) setState(() => _pinnedUid = uid);
       },
       child: Container(
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(borderRadius),
-          // Highlight border if pinned
           border: _pinnedUid == uid
               ? Border.all(color: Colors.redAccent, width: 3)
               : null,
@@ -177,7 +155,9 @@ class _VideoGridState extends State<VideoGrid> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: isTileAudioMuted ? Colors.red.withOpacity(0.8) : Colors.black54,
+                  color: isTileAudioMuted
+                      ? Colors.red.withValues(alpha: 0.8)
+                      : Colors.black54,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
@@ -192,14 +172,21 @@ class _VideoGridState extends State<VideoGrid> {
                     Flexible(
                       child: Text(
                         displayName,
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (hasRaisedHand)
                       const Padding(
                         padding: EdgeInsets.only(left: 6),
-                        child: Icon(Icons.pan_tool_alt, color: Colors.yellow, size: 18),
+                        child: Icon(
+                          Icons.pan_tool,
+                          color: Colors.yellow,
+                          size: 18,
+                        ),
                       ),
                   ],
                 ),
@@ -209,7 +196,6 @@ class _VideoGridState extends State<VideoGrid> {
         ),
       ),
     );
-
   }
 
   @override
@@ -218,58 +204,52 @@ class _VideoGridState extends State<VideoGrid> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // --- Unified View Logic (Large Pinned + Small Scrollable Grid) ---
+    final List<int> allUids = [widget.localUid, ...widget.remoteUids];
 
-    final int largeUid = _pinnedUid;
+    // For host: show grid of all participants
+    if (widget.isHost) {
+      return Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: GridView.builder(
+          itemCount: allUids.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+          ),
+          itemBuilder: (context, index) {
+            final uid = allUids[index];
+            return _videoTile(uid: uid, isLocal: uid == widget.localUid);
+          },
+        ),
+      );
+    }
 
-    // All UIDs including local, excluding the large one.
-    List<int> smallListUids = [widget.localUid, ...widget.remoteUids];
-    // This is the key: remove the pinned user, so the small list contains ALL OTHERS.
-    smallListUids.removeWhere((uid) => uid == largeUid);
-
-    // The UID to show in the large view
-    final int pinnedUidToRender = largeUid == 0 ? widget.localUid : largeUid;
-
-    // Check if the local user is a Broadcaster
-    final bool isLocalBroadcaster = widget.isHost || widget.remoteRoles[widget.localUid] == ClientRoleType.clientRoleBroadcaster;
-
-    // Determine the height of the small grid container dynamically based on the number of small UIDs
-    final double smallGridHeight = smallListUids.isEmpty ? 0 : 120;
-
+    // For participants: pinned + horizontal scroll of others
+    final int pinnedUid = _pinnedUid;
+    List<int> smallUids = allUids.where((uid) => uid != pinnedUid).toList();
 
     return Column(
       children: [
-        // 1. Large Pinned Video
         Expanded(
           flex: 5,
-          child: pinnedUidToRender == 0
-              ? Center(
-            child: Text(
-              isLocalBroadcaster ? 'You are Live!' : 'Waiting for the Broadcaster...',
-              style: const TextStyle(color: Colors.white, fontSize: 20),
-            ),
-          )
-              : _videoTile(
-            uid: pinnedUidToRender,
-            isLocal: pinnedUidToRender == widget.localUid,
+          child: _videoTile(
+            uid: pinnedUid,
+            isLocal: pinnedUid == widget.localUid,
             borderRadius: 0,
           ),
         ),
-
         const SizedBox(height: 8),
-
-        // 2. Small Scrollable Video Grid of Unpinned Participants
-        if (smallListUids.isNotEmpty)
-          Container(
-            height: smallGridHeight, // Use dynamic height
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+        if (smallUids.isNotEmpty)
+          SizedBox(
+            height: 120,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: smallListUids.length,
+              itemCount: smallUids.length,
               itemBuilder: (context, index) {
-                final uid = smallListUids[index];
+                final uid = smallUids[index];
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
                   child: SizedBox(
                     width: 100,
                     height: 100,
@@ -282,7 +262,6 @@ class _VideoGridState extends State<VideoGrid> {
               },
             ),
           ),
-        const SizedBox(height: 8),
       ],
     );
   }

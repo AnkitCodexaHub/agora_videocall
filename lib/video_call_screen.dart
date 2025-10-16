@@ -22,10 +22,9 @@ class VideoCallScreen extends StatefulWidget {
 }
 
 class _VideoCallScreenState extends State<VideoCallScreen> {
-  // NOTE: Replace these with your actual App ID and Token
   static const String appId = "2264731781464d4e8764ce1c02be1c46";
   static const String token =
-      "007eJxTYLCb4yLbpXqHb9bUBTunH5fXXuqW5TPZR1j38KW/d16/VrRXYDAyMjMxNzY0tzA0MTNJMUm1MDczSU41TDYwSgKSJmZLyj5kNAQyMlx7w8nKyACBID4LQ0lqcQkDAwARcR9X";
+      "007eJxTYDApY+Ho1jmRZnu42TE1IzdM5MDKbyHCHhf3aN1nvpvBwavAYGRkZmJubGhuYWhiZpJikmphbmaSnGqYbGCUBCRNzN7t/pDREMjIwMVoycrIAIEgPgtDSWpxCQMDAEXvG/s=";
 
   final int _localUid = Random().nextInt(10000000);
   RtcEngine? _engine;
@@ -33,8 +32,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
   final List<int> _remoteUids = [];
   final Map<int, ClientRoleType> _remoteRoles = {};
-
-  // FIX: Initialize remote mute status to assume Broadcasters are NOT muted by default
   final Map<int, Map<String, bool>> _remoteMuteStatus = {};
   final Map<int, String> _userNames = {};
   final Map<int, bool> _raisedHands = {};
@@ -42,6 +39,13 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   bool _isMicMuted = false;
   bool _isCameraOff = false;
   bool _isScreenSharing = false;
+
+  ClientRoleType get _localRole => widget.isHost
+      ? ClientRoleType.clientRoleBroadcaster
+      : _remoteRoles[_localUid] ?? ClientRoleType.clientRoleAudience;
+
+  bool get _isLocalBroadcaster =>
+      _localRole == ClientRoleType.clientRoleBroadcaster;
 
   @override
   void initState() {
@@ -60,15 +64,12 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
     _engine!.registerEventHandler(
       RtcEngineEventHandler(
-        onJoinChannelSuccess: (connection, elapsed) {
-          setState(() => _localUserJoined = true);
-        },
+        onJoinChannelSuccess: (connection, elapsed) =>
+            setState(() => _localUserJoined = true),
         onUserJoined: (connection, remoteUid, elapsed) {
           setState(() {
             _remoteUids.add(remoteUid);
-            // Default new user to Audience, their role will be updated by remote role change event
             _remoteRoles[remoteUid] = ClientRoleType.clientRoleAudience;
-            // FIX: Initialize remote mute status optimistically for all new users (unmuted)
             _remoteMuteStatus[remoteUid] = {'audio': false, 'video': false};
             _userNames[remoteUid] = "Participant $remoteUid";
           });
@@ -82,16 +83,29 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
             _raisedHands.remove(remoteUid);
           });
         },
+        onClientRoleChanged: (connection, oldRole, newRole, newRoleOptions) {
+          setState(() {
+            _remoteRoles[_localUid] = newRole;
+            final isNowBroadcaster =
+                newRole == ClientRoleType.clientRoleBroadcaster;
+            _engine!.muteLocalAudioStream(!isNowBroadcaster);
+            _engine!.enableLocalVideo(isNowBroadcaster);
+            _isMicMuted = !isNowBroadcaster;
+            _isCameraOff = !isNowBroadcaster;
+          });
+        },
       ),
     );
 
     await _engine!.enableVideo();
-
     await _engine!.setClientRole(
       role: widget.isHost
           ? ClientRoleType.clientRoleBroadcaster
           : ClientRoleType.clientRoleAudience,
     );
+
+    _isMicMuted = !widget.isHost;
+    _isCameraOff = !widget.isHost;
 
     await _engine!.joinChannel(
       token: token,
@@ -102,42 +116,54 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         clientRoleType: widget.isHost
             ? ClientRoleType.clientRoleBroadcaster
             : ClientRoleType.clientRoleAudience,
-        // Host publishes by default, Participants do not
         publishCameraTrack: widget.isHost,
         publishMicrophoneTrack: widget.isHost,
+        autoSubscribeVideo: true,
+        autoSubscribeAudio: true,
       ),
     );
   }
 
-  void _onToggleMic() {
+  void _toggleMic() {
+    if (!_isLocalBroadcaster) return;
     setState(() => _isMicMuted = !_isMicMuted);
     _engine!.muteLocalAudioStream(_isMicMuted);
   }
 
-  void _onToggleCamera() {
+  void _toggleCamera() {
+    if (!_isLocalBroadcaster) return;
     setState(() => _isCameraOff = !_isCameraOff);
     _engine!.enableLocalVideo(!_isCameraOff);
   }
 
-  void _switchCamera() => _engine!.switchCamera();
+  void _switchCamera() {
+    if (!_isLocalBroadcaster) return;
+    _engine!.switchCamera();
+  }
 
   void _toggleScreenShare() {
+    if (!_isLocalBroadcaster) return;
     setState(() => _isScreenSharing = !_isScreenSharing);
-    // TODO: Implement actual Agora screen sharing logic here
   }
 
   void _shareMeetingLink() {
-    Share.share('Join my live stream on channel: ${widget.channelName}');
+    Share.share('Join my live meeting: ${widget.channelName}');
   }
 
-  void _onEndCall() => Navigator.of(context).pop();
+  void _endCall() => Navigator.of(context).pop();
 
-  void _promoteToSpeaker(int uid, bool promote) {
-    if (!widget.isHost) return;
+  void _promoteToSpeaker(int uid, bool promote) async {
+    if (!widget.isHost || uid == _localUid) return;
     final newRole = promote
         ? ClientRoleType.clientRoleBroadcaster
         : ClientRoleType.clientRoleAudience;
-
+    await _engine!.setClientRole(
+      role: newRole,
+      options: const ClientRoleOptions(
+        audienceLatencyLevel:
+            AudienceLatencyLevelType.audienceLatencyLevelLowLatency,
+      ),
+    );
     setState(() {
       _remoteRoles[uid] = newRole;
       if (promote) _raisedHands.remove(uid);
@@ -153,19 +179,21 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isLocalBroadcaster = _isLocalBroadcaster;
+
     return Scaffold(
       extendBodyBehindAppBar: false,
       appBar: AppBar(
         backgroundColor: Colors.black87,
-        title: Text(widget.channelName),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: _onEndCall,
+        title: Text(
+          '${widget.channelName} (${isLocalBroadcaster ? 'Live' : 'Watching'})',
         ),
+        leading: IconButton(icon: const Icon(Icons.close), onPressed: _endCall),
       ),
       body: Column(
         children: [
           Expanded(
+            flex: 5,
             child: VideoGrid(
               engine: _engine,
               localUid: _localUid,
@@ -184,18 +212,20 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           ),
           ControlBar(
             isHost: widget.isHost,
+            isLocalBroadcaster: isLocalBroadcaster,
             isMicMuted: _isMicMuted,
             isCameraOff: _isCameraOff,
             isScreenSharing: _isScreenSharing,
-            isHandRaised: !widget.isHost
+            isHandRaised: !isLocalBroadcaster
                 ? (_raisedHands[_localUid] ?? false)
                 : false,
-            onToggleMic: _onToggleMic,
-            onToggleCamera: _onToggleCamera,
+            onToggleMic: _toggleMic,
+            onToggleCamera: _toggleCamera,
             onSwitchCamera: _switchCamera,
             onToggleScreenShare: _toggleScreenShare,
             onShare: _shareMeetingLink,
             onShowParticipants: () {
+              setState(() {});
               showModalBottomSheet(
                 context: context,
                 isScrollControlled: true,
@@ -203,7 +233,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                 builder: (_) => ParticipantsList(
                   localUid: _localUid,
                   remoteUids: _remoteUids,
-                  remoteRoles: _remoteRoles,
+                  remoteRoles: Map.from(_remoteRoles)..[_localUid] = _localRole,
                   remoteMuteStatus: _remoteMuteStatus,
                   userNames: _userNames,
                   engine: _engine!,
@@ -215,14 +245,12 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                 ),
               );
             },
-            onEndCall: _onEndCall,
-            onToggleHand: !widget.isHost
-                ? () {
-              setState(() {
-                _raisedHands[_localUid] =
-                !(_raisedHands[_localUid] ?? false);
-              });
-            }
+            onEndCall: _endCall,
+            onToggleHand: !isLocalBroadcaster
+                ? () => setState(
+                    () => _raisedHands[_localUid] =
+                        !(_raisedHands[_localUid] ?? false),
+                  )
                 : null,
           ),
         ],

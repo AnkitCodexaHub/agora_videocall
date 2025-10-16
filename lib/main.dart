@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'video_call_screen.dart';
 
 void main() {
-  // Ensure the dark theme uses an Instagram-like black background
   runApp(const MyApp());
 }
 
@@ -12,50 +11,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Live Video Stream App',
+      title: 'Live Meeting App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark().copyWith(
-        primaryColor: const Color(0xFFE4405F), // Instagram Red/Pink
-        scaffoldBackgroundColor: const Color(0xFF111111), // Dark Background
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          elevation: 0,
-        ),
-        textTheme: const TextTheme(
-          titleLarge: TextStyle(color: Colors.white),
-          bodyMedium: TextStyle(color: Colors.white),
-          labelLarge: TextStyle(color: Colors.white),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFE4405F), // Primary Color
-            foregroundColor: Colors.white,
-            minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(100),
-            ),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.white,
-            side: const BorderSide(color: Color(0xFFE4405F)),
-            minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(100),
-            ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white.withOpacity(0.1),
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide.none,
-          ),
-        ),
+        primaryColor: const Color(0xFFE4405F),
+        scaffoldBackgroundColor: const Color(0xFF111111),
       ),
       home: const JoinScreen(),
     );
@@ -70,16 +30,16 @@ class JoinScreen extends StatefulWidget {
 }
 
 class _JoinScreenState extends State<JoinScreen> {
-  // FIX: Set default value to "test"
-  final TextEditingController _channelController =
-  TextEditingController(text: "test");
+  final TextEditingController _channelController = TextEditingController(
+    text: "test",
+  );
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   void onJoin(BuildContext context, bool isHost) {
     if (_formKey.currentState!.validate()) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => VideoCallScreen(
+          builder: (_) => VideoCallScreen(
             channelName: _channelController.text,
             isHost: isHost,
           ),
@@ -97,26 +57,17 @@ class _JoinScreenState extends State<JoinScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Live Stream'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Join Meeting'), centerTitle: true),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(32),
           child: Form(
             key: _formKey,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: <Widget>[
+              children: [
                 const Text(
                   "Enter Channel Name",
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 20),
                 TextFormField(
@@ -124,29 +75,26 @@ class _JoinScreenState extends State<JoinScreen> {
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
-                    hintText: "e.g., MyLiveStream",
+                    hintText: "e.g., Meeting123",
                     contentPadding: EdgeInsets.symmetric(
-                      horizontal: 20.0,
-                      vertical: 15.0,
+                      horizontal: 20,
+                      vertical: 15,
                     ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a valid channel name';
-                    }
-                    return null;
-                  },
+                  validator: (value) => (value == null || value.isEmpty)
+                      ? 'Please enter a valid channel name'
+                      : null,
                 ),
                 const SizedBox(height: 40),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.videocam),
-                  label: const Text("Start Live (Host)"),
+                  label: const Text("Start Meeting (Host)"),
                   onPressed: () => onJoin(context, true),
                 ),
                 const SizedBox(height: 20),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.group),
-                  label: const Text("Join Live (Participant)"),
+                  label: const Text("Join Meeting (Participant)"),
                   onPressed: () => onJoin(context, false),
                 ),
               ],
