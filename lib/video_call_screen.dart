@@ -22,9 +22,10 @@ class VideoCallScreen extends StatefulWidget {
 }
 
 class _VideoCallScreenState extends State<VideoCallScreen> {
+  // NOTE: Replace these with your actual App ID and Token
   static const String appId = "2264731781464d4e8764ce1c02be1c46";
   static const String token =
-      "007eJxTYJDXu5ikpvqSt1L85YMP69pbLSQ1U5RKQv4sUbocdOZbyCkFBiMjMxNzY0NzC0MTM5MUk1QLczOT5FTDZAOjJCBpYmaj+T6jIZCRYdqbDlZGBggE8VkYSlKLSxgYAPblHss=";
+      "007eJxTYLCb4yLbpXqHb9bUBTunH5fXXuqW5TPZR1j38KW/d16/VrRXYDAyMjMxNzY0tzA0MTNJMUm1MDczSU41TDYwSgKSJmZLyj5kNAQyMlx7w8nKyACBID4LQ0lqcQkDAwARcR9X";
 
   final int _localUid = Random().nextInt(10000000);
   RtcEngine? _engine;
@@ -32,6 +33,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
   final List<int> _remoteUids = [];
   final Map<int, ClientRoleType> _remoteRoles = {};
+  // FIX: Initialize remote mute status to assume Broadcasters are NOT muted by default
   final Map<int, Map<String, bool>> _remoteMuteStatus = {};
   final Map<int, String> _userNames = {};
   final Map<int, bool> _raisedHands = {};
@@ -63,8 +65,10 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         onUserJoined: (connection, remoteUid, elapsed) {
           setState(() {
             _remoteUids.add(remoteUid);
+            // Default new user to Audience, their role will be updated by remote role change event
             _remoteRoles[remoteUid] = ClientRoleType.clientRoleAudience;
-            _remoteMuteStatus[remoteUid] = {'audio': true, 'video': true};
+            // FIX: Initialize remote mute status optimistically for all new users (unmuted)
+            _remoteMuteStatus[remoteUid] = {'audio': false, 'video': false};
             _userNames[remoteUid] = "Participant $remoteUid";
           });
         },
@@ -97,6 +101,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         clientRoleType: widget.isHost
             ? ClientRoleType.clientRoleBroadcaster
             : ClientRoleType.clientRoleAudience,
+        // Host publishes by default, Participants do not
         publishCameraTrack: widget.isHost,
         publishMicrophoneTrack: widget.isHost,
       ),
@@ -117,6 +122,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
   void _toggleScreenShare() {
     setState(() => _isScreenSharing = !_isScreenSharing);
+    // TODO: Implement actual Agora screen sharing logic here
   }
 
   void _shareMeetingLink() {

@@ -62,21 +62,23 @@ class _VideoGridState extends State<VideoGrid> {
   void _updatePinnedUid(List<int> remoteUids, int localUid, bool isHost, Map<int, ClientRoleType> remoteRoles) {
     int newPinnedUid = 0;
 
-    // 1. Find the first Broadcaster (Host/Speaker) among remote users
-    final remoteBroadcasters = remoteUids.where(
-            (uid) => remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster);
-
-    if (remoteBroadcasters.isNotEmpty) {
-      newPinnedUid = remoteBroadcasters.first;
-    } else if (isHost) {
-      // 2. Fallback: If no remote broadcasters, and the local user is the Host/Broadcaster, pin them.
+    // FIX: If the local user is the Host, they should always be pinned in the large view.
+    if (isHost) {
       newPinnedUid = localUid;
+    } else {
+      // If not the Host (i.e., a Participant), pin the first available remote Broadcaster.
+      final remoteBroadcasters = remoteUids.where(
+              (uid) => remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster);
+
+      if (remoteBroadcasters.isNotEmpty) {
+        newPinnedUid = remoteBroadcasters.first;
+      }
     }
 
-    // This logic ensures the largest stream is always the primary broadcaster (Host or promoted speaker).
-    // If the local user is the primary broadcaster and no one else is, they are pinned.
-    // If a remote user is a broadcaster, they are pinned, achieving the swap effect
-    // where the local host or participant is in the smaller grid/list watching the main speaker.
+    // Fallback: If no other suitable candidate is found, pin the local user.
+    if (newPinnedUid == 0) {
+      newPinnedUid = localUid;
+    }
 
     if (newPinnedUid != _pinnedUid) {
       setState(() {
@@ -93,12 +95,15 @@ class _VideoGridState extends State<VideoGrid> {
     // Determine the mute state
     final isTileAudioMuted = isLocal
         ? widget.isMicMuted
-        : widget.remoteMuteStatus[uid]?['audio'] ?? true;
+    // FIX: Default to unmuted (false) if status is missing, which is common for broadcasters
+        : widget.remoteMuteStatus[uid]?['audio'] ?? false;
     final isTileVideoOff = isLocal
         ? widget.isCameraOff
-        : widget.remoteMuteStatus[uid]?['video'] ?? true;
+    // FIX: Default to video on (false) if status is missing, which is common for broadcasters
+        : widget.remoteMuteStatus[uid]?['video'] ?? false;
+
     final isBroadcaster = isLocal
-        ? widget.isHost // Local user role is determined by isHost in this app's context
+        ? widget.isHost
         : widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster;
     final displayName = widget.userNames[uid] ?? 'User $uid';
     final hasRaisedHand = widget.raisedHands[uid] ?? false;
@@ -154,11 +159,11 @@ class _VideoGridState extends State<VideoGrid> {
       onTap: () {
         if (_pinnedUid == uid) return; // Already pinned, do nothing
 
+        // Host cannot pin others over themselves (as per the new requirement)
+        if (widget.isHost) return;
+
         setState(() {
-          int previousPinned = _pinnedUid; // Save old pinned UID
-          _pinnedUid = uid;                // New pinned UID
-          // No need to modify small list, small list rebuilds automatically
-          // because we exclude _pinnedUid in build()
+          _pinnedUid = uid; // New pinned UID
         });
       },
       child: Container(
@@ -225,7 +230,7 @@ class _VideoGridState extends State<VideoGrid> {
     List<int> smallListUids = [widget.localUid, ...widget.remoteUids];
     smallListUids.removeWhere((uid) => uid == largeUid);
 
-    final bool isLocalPinned = largeUid == widget.localUid;
+    // The pinnedUidToRender will be the calculated pinned UID
     final int pinnedUidToRender = largeUid == 0 ? widget.localUid : largeUid;
 
     // Check if the local user is a Broadcaster, even if not the Host
