@@ -59,23 +59,19 @@ class _VideoGridState extends State<VideoGrid> {
     }
   }
 
+  // Determines the default large view (first broadcaster, then local user).
   void _updatePinnedUid(List<int> remoteUids, int localUid, bool isHost, Map<int, ClientRoleType> remoteRoles) {
     int newPinnedUid = 0;
 
-    // FIX: If the local user is the Host, they should always be pinned in the large view.
-    if (isHost) {
-      newPinnedUid = localUid;
-    } else {
-      // If not the Host (i.e., a Participant), pin the first available remote Broadcaster.
-      final remoteBroadcasters = remoteUids.where(
-              (uid) => remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster);
+    // 1. Prioritize pinning the first available remote Broadcaster (the active speaker).
+    final remoteBroadcasters = remoteUids.where(
+            (uid) => remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster);
 
-      if (remoteBroadcasters.isNotEmpty) {
-        newPinnedUid = remoteBroadcasters.first;
-      }
+    if (remoteBroadcasters.isNotEmpty) {
+      newPinnedUid = remoteBroadcasters.first;
     }
 
-    // Fallback: If no other suitable candidate is found, pin the local user.
+    // 2. Fallback: If no remote broadcasters are present, pin the local user.
     if (newPinnedUid == 0) {
       newPinnedUid = localUid;
     }
@@ -95,15 +91,13 @@ class _VideoGridState extends State<VideoGrid> {
     // Determine the mute state
     final isTileAudioMuted = isLocal
         ? widget.isMicMuted
-    // FIX: Default to unmuted (false) if status is missing, which is common for broadcasters
-        : widget.remoteMuteStatus[uid]?['audio'] ?? false;
+        : widget.remoteMuteStatus[uid]?['audio'] ?? false; // Default to unmuted
     final isTileVideoOff = isLocal
         ? widget.isCameraOff
-    // FIX: Default to video on (false) if status is missing, which is common for broadcasters
-        : widget.remoteMuteStatus[uid]?['video'] ?? false;
+        : widget.remoteMuteStatus[uid]?['video'] ?? false; // Default to video on
 
     final isBroadcaster = isLocal
-        ? widget.isHost
+        ? widget.isHost || (widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster && isLocal == false)
         : widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster;
     final displayName = widget.userNames[uid] ?? 'User $uid';
     final hasRaisedHand = widget.raisedHands[uid] ?? false;
@@ -159,9 +153,7 @@ class _VideoGridState extends State<VideoGrid> {
       onTap: () {
         if (_pinnedUid == uid) return; // Already pinned, do nothing
 
-        // Host cannot pin others over themselves (as per the new requirement)
-        if (widget.isHost) return;
-
+        // Manual pin is allowed for all users (Host or Participant).
         setState(() {
           _pinnedUid = uid; // New pinned UID
         });
@@ -170,6 +162,7 @@ class _VideoGridState extends State<VideoGrid> {
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(borderRadius),
+          // Highlight border if pinned
           border: _pinnedUid == uid
               ? Border.all(color: Colors.redAccent, width: 3)
               : null,
@@ -225,20 +218,28 @@ class _VideoGridState extends State<VideoGrid> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    // --- Unified View Logic (Large Pinned + Small Scrollable Grid) ---
+
     final int largeUid = _pinnedUid;
 
+    // All UIDs including local, excluding the large one.
     List<int> smallListUids = [widget.localUid, ...widget.remoteUids];
+    // This is the key: remove the pinned user, so the small list contains ALL OTHERS.
     smallListUids.removeWhere((uid) => uid == largeUid);
 
-    // The pinnedUidToRender will be the calculated pinned UID
+    // The UID to show in the large view
     final int pinnedUidToRender = largeUid == 0 ? widget.localUid : largeUid;
 
-    // Check if the local user is a Broadcaster, even if not the Host
+    // Check if the local user is a Broadcaster
     final bool isLocalBroadcaster = widget.isHost || widget.remoteRoles[widget.localUid] == ClientRoleType.clientRoleBroadcaster;
+
+    // Determine the height of the small grid container dynamically based on the number of small UIDs
+    final double smallGridHeight = smallListUids.isEmpty ? 0 : 120;
 
 
     return Column(
       children: [
+        // 1. Large Pinned Video
         Expanded(
           flex: 5,
           child: pinnedUidToRender == 0
@@ -257,9 +258,10 @@ class _VideoGridState extends State<VideoGrid> {
 
         const SizedBox(height: 8),
 
+        // 2. Small Scrollable Video Grid of Unpinned Participants
         if (smallListUids.isNotEmpty)
           Container(
-            height: 120,
+            height: smallGridHeight, // Use dynamic height
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: ListView.builder(
               scrollDirection: Axis.horizontal,

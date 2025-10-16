@@ -32,18 +32,18 @@ class ParticipantsList extends StatelessWidget {
   void _forceToggleRemote(int uid, bool muteAudio) async {
     if (!isHost) return;
     final key = muteAudio ? 'audio' : 'video';
+    // Safely retrieve current status, defaulting to OFF (false) if missing
     final current = remoteMuteStatus[uid]?[key] ?? false;
+    final value = !current;
 
     if (muteAudio) {
       // Mute/Unmute audio
-      await engine.muteRemoteAudioStream(uid: uid, mute: !current);
+      await engine.muteRemoteAudioStream(uid: uid, mute: value);
     } else {
       // Mute/Unmute video
-      await engine.muteRemoteVideoStream(uid: uid, mute: !current);
+      await engine.muteRemoteVideoStream(uid: uid, mute: value);
     }
 
-    // Update local state and trigger UI refresh
-    remoteMuteStatus[uid]?[key] = !current;
     notifyParent();
   }
 
@@ -51,64 +51,42 @@ class ParticipantsList extends StatelessWidget {
     if (!isHost) return;
     final isBroadcaster = remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster;
 
-    // Call the callback function from the parent to change the role
+    // Promote/Demote logic
     onRoleChange(uid, !isBroadcaster);
-  }
-
-  // Helper to get role of a remote user, or infer local user role
-  ClientRoleType _getUserRole(int uid) {
-    if (uid == localUid) {
-      return isHost ? ClientRoleType.clientRoleBroadcaster : ClientRoleType.clientRoleAudience;
-    }
-    return remoteRoles[uid] ?? ClientRoleType.clientRoleAudience;
+    notifyParent();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 1. Combine local and remote UIDs
+    // Combine local user and remote users into a single list
     final List<int> allUids = [localUid, ...remoteUids];
 
-    // 2. Sort: Broadcasters first, then Audience, with Host always on top of the broadcasters
-    allUids.sort((a, b) {
-      final aRole = _getUserRole(a);
-      final bRole = _getUserRole(b);
-
-      // Host (local user) should always be first
-      if (a == localUid && isHost) return -1;
-      if (b == localUid && isHost) return 1;
-
-      // Broadcasters before Audience
-      if (aRole == ClientRoleType.clientRoleBroadcaster &&
-          bRole == ClientRoleType.clientRoleAudience) return -1;
-      if (aRole == ClientRoleType.clientRoleAudience &&
-          bRole == ClientRoleType.clientRoleBroadcaster) return 1;
-
-      return 0; // Maintain insertion order for same roles
-    });
-
-    return FractionallySizedBox(
-      heightFactor: 0.8, // Make the bottom sheet cover 80% of the screen
-      child: Container(
-        padding: const EdgeInsets.only(top: 16, left: 8, right: 8),
-        decoration: const BoxDecoration(
-          color: Color(0xFF1E1E1E), // Darker background for the sheet
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      decoration: const BoxDecoration(
+        color: Color(0xFF111111),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Handle (for dragging down)
             Container(
               height: 5,
-              width: 40,
+              width: 50,
               decoration: BoxDecoration(
-                color: Colors.white54,
-                borderRadius: BorderRadius.circular(10),
+                color: Colors.white.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(5),
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Participants (${allUids.length})',
-              style: Theme.of(context).textTheme.titleLarge,
+            const Text(
+              'Participants',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -117,41 +95,37 @@ class ParticipantsList extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final uid = allUids[index];
                   final isLocal = uid == localUid;
-                  final displayName = userNames[uid] ?? (isLocal ? 'You (Local)' : 'User $uid');
-                  final role = _getUserRole(uid);
-                  final isBroadcaster = role == ClientRoleType.clientRoleBroadcaster;
+                  final displayName = userNames[uid] ?? (isLocal ? 'Me (You)' : 'User $uid');
 
-                  // Determine mute status
-                  final isAudioMuted = isLocal
-                      ? isLocalMicMuted
-                      : remoteMuteStatus[uid]?['audio'] ?? false;
-                  final isVideoMuted = isLocal
-                      ? isLocalCameraOff
-                      : remoteMuteStatus[uid]?['video'] ?? false;
+                  // Determine status for the current user
+                  final isAudioMuted = isLocal ? isLocalMicMuted : (remoteMuteStatus[uid]?['audio'] ?? false);
+                  final isVideoMuted = isLocal ? isLocalCameraOff : (remoteMuteStatus[uid]?['video'] ?? false);
+                  final isBroadcaster = isLocal ? isHost : (remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster);
 
                   return ListTile(
                     leading: CircleAvatar(
                       backgroundColor: isBroadcaster ? Colors.redAccent : Colors.blueGrey,
                       child: Text(
-                        displayName[0].toUpperCase(),
+                        displayName.substring(0, 1),
                         style: const TextStyle(color: Colors.white),
                       ),
                     ),
                     title: Text(
                       displayName,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: Colors.white),
                     ),
                     subtitle: Text(
-                      isBroadcaster ? 'Speaker' : 'Audience',
+                      isBroadcaster ? 'Broadcaster' : 'Audience',
                       style: TextStyle(
-                        color: isBroadcaster ? Colors.greenAccent : Colors.white70,
+                        color: isBroadcaster ? Colors.redAccent : Colors.white70,
                       ),
                     ),
+                    // Host-only controls for remote users
                     trailing: isHost && !isLocal
                         ? Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Audio Toggle Button (Host can toggle remote users)
+                        // Audio Toggle Button
                         IconButton(
                           icon: Icon(
                             isAudioMuted ? Icons.mic_off : Icons.mic,
@@ -181,7 +155,15 @@ class ParticipantsList extends StatelessWidget {
                         ),
                       ],
                     )
-                        : null, // Host controls for remote users.
+                        : isLocal
+                        ? const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Local user only shows status
+                        Icon(Icons.person, color: Colors.white70),
+                      ],
+                    )
+                        : null,
                   );
                 },
               ),

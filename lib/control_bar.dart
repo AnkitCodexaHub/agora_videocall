@@ -13,7 +13,7 @@ class ControlBar extends StatelessWidget {
   final VoidCallback onShare;
   final VoidCallback onShowParticipants;
   final VoidCallback onEndCall;
-  final VoidCallback? onToggleHand; // Nullable for participants only
+  final VoidCallback? onToggleHand;
 
   const ControlBar({
     super.key,
@@ -44,7 +44,7 @@ class ControlBar extends StatelessWidget {
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: color.withOpacity(0.5),
+              color: color.withValues(alpha: 0.5),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),

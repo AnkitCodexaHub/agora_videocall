@@ -33,6 +33,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
   final List<int> _remoteUids = [];
   final Map<int, ClientRoleType> _remoteRoles = {};
+
   // FIX: Initialize remote mute status to assume Broadcasters are NOT muted by default
   final Map<int, Map<String, bool>> _remoteMuteStatus = {};
   final Map<int, String> _userNames = {};
@@ -186,7 +187,9 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
             isMicMuted: _isMicMuted,
             isCameraOff: _isCameraOff,
             isScreenSharing: _isScreenSharing,
-            isHandRaised: !widget.isHost ? (_raisedHands[_localUid] ?? false) : false,
+            isHandRaised: !widget.isHost
+                ? (_raisedHands[_localUid] ?? false)
+                : false,
             onToggleMic: _onToggleMic,
             onToggleCamera: _onToggleCamera,
             onSwitchCamera: _switchCamera,
