@@ -139,12 +139,6 @@ class _VideoGridState extends State<VideoGrid> {
                 size: 30,
                 color: Colors.white,
               ),
-              const SizedBox(height: 8),
-              Text(
-                displayName,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
             ],
           ),
         ),
@@ -152,18 +146,18 @@ class _VideoGridState extends State<VideoGrid> {
     } else {
       videoWidget = isLocal
           ? agora.AgoraVideoView(
-              controller: agora.VideoViewController(
-                rtcEngine: widget.engine!,
-                canvas: const agora.VideoCanvas(uid: 0),
-              ),
-            )
+        controller: agora.VideoViewController(
+          rtcEngine: widget.engine!,
+          canvas: const agora.VideoCanvas(uid: 0),
+        ),
+      )
           : agora.AgoraVideoView(
-              controller: agora.VideoViewController.remote(
-                rtcEngine: widget.engine!,
-                canvas: agora.VideoCanvas(uid: uid),
-                connection: agora.RtcConnection(channelId: widget.channelName),
-              ),
-            );
+        controller: agora.VideoViewController.remote(
+          rtcEngine: widget.engine!,
+          canvas: agora.VideoCanvas(uid: uid),
+          connection: agora.RtcConnection(channelId: widget.channelName),
+        ),
+      );
     }
 
     Color? borderColor;
@@ -198,7 +192,7 @@ class _VideoGridState extends State<VideoGrid> {
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: isTileAudioMuted
-                      ? Colors.red.withValues(alpha: 0.8)
+                      ? Colors.red.withOpacity(0.8)
                       : Colors.black54,
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -255,27 +249,25 @@ class _VideoGridState extends State<VideoGrid> {
         if (smallUids.isNotEmpty) const SizedBox(height: 8),
 
         if (smallUids.isNotEmpty)
-          Flexible(
-            child: SizedBox(
-              height: 120,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: smallUids.length,
-                itemBuilder: (context, index) {
-                  final uid = smallUids[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: SizedBox(
-                      width: 120,
-                      height: 120,
-                      child: _videoTile(
-                        uid: uid,
-                        isLocal: uid == widget.localUid,
-                      ),
+          SizedBox(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: smallUids.length,
+              itemBuilder: (context, index) {
+                final uid = smallUids[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: _videoTile(
+                      uid: uid,
+                      isLocal: uid == widget.localUid,
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
       ],
