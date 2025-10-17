@@ -12,10 +12,11 @@ class VideoGrid extends StatefulWidget {
   final bool isLocalUserJoined;
   final bool isCameraOff;
   final bool isMicMuted;
-  final bool isHost;
   final Map<int, String> userNames;
   final Map<int, bool> raisedHands;
   final Function(int uid, bool promote)? onRoleChange;
+  final bool isHost;
+  final int? activeSpeakerUid;
 
   const VideoGrid({
     super.key,
@@ -28,9 +29,10 @@ class VideoGrid extends StatefulWidget {
     required this.isLocalUserJoined,
     required this.isCameraOff,
     required this.isMicMuted,
-    required this.isHost,
     required this.userNames,
     required this.raisedHands,
+    required this.isHost,
+    required this.activeSpeakerUid,
     this.onRoleChange,
   });
 
@@ -44,6 +46,7 @@ class _VideoGridState extends State<VideoGrid> {
   @override
   void initState() {
     super.initState();
+    _pinnedUid = widget.localUid;
     _updatePinnedUid();
   }
 
@@ -51,24 +54,54 @@ class _VideoGridState extends State<VideoGrid> {
   void didUpdateWidget(VideoGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.remoteUids != oldWidget.remoteUids ||
-        widget.remoteRoles != oldWidget.remoteRoles ||
-        widget.isHost != oldWidget.isHost) {
+        widget.activeSpeakerUid != oldWidget.activeSpeakerUid ||
+        widget.isCameraOff != oldWidget.isCameraOff) {
       _updatePinnedUid();
     }
   }
 
   void _updatePinnedUid() {
-    int newPinned = 0;
-    final remoteBroadcasters = widget.remoteUids.where(
-      (uid) => widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster,
-    );
-    if (remoteBroadcasters.isNotEmpty) {
-      newPinned = remoteBroadcasters.first;
-    } else {
-      newPinned = widget.localUid;
+    final List<int> allUids = [widget.localUid, ...widget.remoteUids];
+    int? newPinnedCandidate;
+
+    bool isVideoOff(int uid) {
+      if (uid == widget.localUid) {
+        return widget.isCameraOff;
+      }
+      return widget.remoteMuteStatus[uid]?['video'] ?? true;
     }
-    if (newPinned != _pinnedUid) {
-      setState(() => _pinnedUid = newPinned);
+
+    if (widget.activeSpeakerUid != null &&
+        allUids.contains(widget.activeSpeakerUid) &&
+        !isVideoOff(widget.activeSpeakerUid!)) {
+      newPinnedCandidate = widget.activeSpeakerUid!;
+    }
+
+    if (newPinnedCandidate == null &&
+        allUids.contains(_pinnedUid) &&
+        !isVideoOff(_pinnedUid)) {
+      newPinnedCandidate = _pinnedUid;
+    }
+
+    if (newPinnedCandidate == null && !widget.isCameraOff) {
+      newPinnedCandidate = widget.localUid;
+    }
+
+    if (newPinnedCandidate == null) {
+      for (final uid in widget.remoteUids) {
+        if (!isVideoOff(uid)) {
+          newPinnedCandidate = uid;
+          break;
+        }
+      }
+    }
+
+    if (newPinnedCandidate == null || newPinnedCandidate == 0) {
+      newPinnedCandidate = widget.localUid;
+    }
+
+    if (newPinnedCandidate != _pinnedUid) {
+      setState(() => _pinnedUid = newPinnedCandidate!);
     }
   }
 
@@ -79,15 +112,15 @@ class _VideoGridState extends State<VideoGrid> {
   }) {
     final isTileAudioMuted = isLocal
         ? widget.isMicMuted
-        : widget.remoteMuteStatus[uid]?['audio'] ?? false;
+        : widget.remoteMuteStatus[uid]?['audio'] ?? true;
     final isTileVideoOff = isLocal
         ? widget.isCameraOff
-        : widget.remoteMuteStatus[uid]?['video'] ?? false;
+        : widget.remoteMuteStatus[uid]?['video'] ?? true;
 
-    final isBroadcaster =
-        widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster;
-    final displayName = widget.userNames[uid] ?? 'User $uid';
-    final hasRaisedHand = widget.raisedHands[uid] ?? false;
+    String displayName = widget.userNames[uid] ?? 'User $uid';
+    if (isLocal) {
+      displayName += ' (You)';
+    }
 
     Widget videoWidget;
     if (widget.engine == null || isTileVideoOff) {
@@ -101,8 +134,8 @@ class _VideoGridState extends State<VideoGrid> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                isBroadcaster ? Icons.videocam_off_rounded : Icons.person_off,
+              const Icon(
+                Icons.videocam_off_rounded,
                 size: 30,
                 color: Colors.white,
               ),
@@ -133,6 +166,15 @@ class _VideoGridState extends State<VideoGrid> {
             );
     }
 
+    Color? borderColor;
+    if (_pinnedUid == uid) {
+      if (widget.activeSpeakerUid == uid && !isTileVideoOff) {
+        borderColor = Colors.redAccent;
+      } else {
+        borderColor = Colors.blue;
+      }
+    }
+
     return GestureDetector(
       onTap: () {
         if (_pinnedUid != uid) setState(() => _pinnedUid = uid);
@@ -141,8 +183,8 @@ class _VideoGridState extends State<VideoGrid> {
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(borderRadius),
-          border: _pinnedUid == uid
-              ? Border.all(color: Colors.redAccent, width: 3)
+          border: borderColor != null
+              ? Border.all(color: borderColor, width: 3)
               : null,
         ),
         clipBehavior: Clip.hardEdge,
@@ -179,15 +221,6 @@ class _VideoGridState extends State<VideoGrid> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (hasRaisedHand)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 6),
-                        child: Icon(
-                          Icons.pan_tool,
-                          color: Colors.yellow,
-                          size: 18,
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -205,31 +238,11 @@ class _VideoGridState extends State<VideoGrid> {
     }
 
     final List<int> allUids = [widget.localUid, ...widget.remoteUids];
-
-    // For host: show grid of all participants
-    if (widget.isHost) {
-      return Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: GridView.builder(
-          itemCount: allUids.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-          ),
-          itemBuilder: (context, index) {
-            final uid = allUids[index];
-            return _videoTile(uid: uid, isLocal: uid == widget.localUid);
-          },
-        ),
-      );
-    }
-
-    // For participants: pinned + horizontal scroll of others
     final int pinnedUid = _pinnedUid;
     List<int> smallUids = allUids.where((uid) => uid != pinnedUid).toList();
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
           flex: 5,
@@ -239,27 +252,30 @@ class _VideoGridState extends State<VideoGrid> {
             borderRadius: 0,
           ),
         ),
-        const SizedBox(height: 8),
+        if (smallUids.isNotEmpty) const SizedBox(height: 8),
+
         if (smallUids.isNotEmpty)
-          SizedBox(
-            height: 120,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: smallUids.length,
-              itemBuilder: (context, index) {
-                final uid = smallUids[index];
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                  child: SizedBox(
-                    width: 100,
-                    height: 100,
-                    child: _videoTile(
-                      uid: uid,
-                      isLocal: uid == widget.localUid,
+          Flexible(
+            child: SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: smallUids.length,
+                itemBuilder: (context, index) {
+                  final uid = smallUids[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: SizedBox(
+                      width: 120,
+                      height: 120,
+                      child: _videoTile(
+                        uid: uid,
+                        isLocal: uid == widget.localUid,
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
       ],

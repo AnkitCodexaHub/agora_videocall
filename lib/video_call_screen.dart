@@ -8,14 +8,9 @@ import 'video_grid.dart';
 import 'control_bar.dart';
 
 class VideoCallScreen extends StatefulWidget {
-  final bool isHost;
   final String channelName;
 
-  const VideoCallScreen({
-    super.key,
-    required this.isHost,
-    required this.channelName,
-  });
+  const VideoCallScreen({super.key, required this.channelName});
 
   @override
   State<VideoCallScreen> createState() => _VideoCallScreenState();
@@ -24,35 +19,29 @@ class VideoCallScreen extends StatefulWidget {
 class _VideoCallScreenState extends State<VideoCallScreen> {
   static const String appId = "2264731781464d4e8764ce1c02be1c46";
   static const String token =
-      "007eJxTYDApY+Ho1jmRZnu42TE1IzdM5MDKbyHCHhf3aN1nvpvBwavAYGRkZmJubGhuYWhiZpJikmphbmaSnGqYbGCUBCRNzN7t/pDREMjIwMVoycrIAIEgPgtDSWpxCQMDAEXvG/s=";
+      "007eJxTYFBzkvCSn9128iNL2czgD6Fn9i09eVSw8OW3v/ce5j2/fq9KgcHIyMzE3NjQ3MLQxMwkxSTVwtzMJDnVMNnAKAlImpiZvviY0RDIyHDgsS0LIwMEgvgsDCWpxSUMDAAOqiLU";
 
   final int _localUid = Random().nextInt(10000000);
   RtcEngine? _engine;
   bool _localUserJoined = false;
 
   final List<int> _remoteUids = [];
-  final Map<int, ClientRoleType> _remoteRoles = {};
   final Map<int, Map<String, bool>> _remoteMuteStatus = {};
   final Map<int, String> _userNames = {};
-  final Map<int, bool> _raisedHands = {};
 
-  bool _isMicMuted = false;
-  bool _isCameraOff = false;
+  bool _isMicMuted = true;
+  bool _isCameraOff = true;
   bool _isScreenSharing = false;
 
-  ClientRoleType get _localRole => widget.isHost
-      ? ClientRoleType.clientRoleBroadcaster
-      : _remoteRoles[_localUid] ?? ClientRoleType.clientRoleAudience;
+  int? _activeSpeakerUid;
+  final Map<int, bool> _raisedHands = {};
 
-  bool get _isLocalBroadcaster =>
-      _localRole == ClientRoleType.clientRoleBroadcaster;
+  final ClientRoleType _fixedRole = ClientRoleType.clientRoleBroadcaster;
 
   @override
   void initState() {
     super.initState();
-    _userNames[_localUid] = widget.isHost
-        ? "Host: ${widget.channelName}"
-        : "Participant $_localUid";
+    _userNames[_localUid] = "User $_localUid";
     _initAgora();
   }
 
@@ -62,6 +51,12 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     _engine = createAgoraRtcEngine();
     await _engine!.initialize(const RtcEngineContext(appId: appId));
 
+    await _engine!.enableAudioVolumeIndication(
+      interval: 200,
+      smooth: 3,
+      reportVad: true,
+    );
+
     _engine!.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (connection, elapsed) =>
@@ -69,43 +64,71 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         onUserJoined: (connection, remoteUid, elapsed) {
           setState(() {
             _remoteUids.add(remoteUid);
-            _remoteRoles[remoteUid] = ClientRoleType.clientRoleAudience;
             _remoteMuteStatus[remoteUid] = {'audio': false, 'video': false};
-            _userNames[remoteUid] = "Participant $remoteUid";
+            _userNames[remoteUid] = "User $remoteUid";
           });
         },
         onUserOffline: (connection, remoteUid, reason) {
           setState(() {
             _remoteUids.remove(remoteUid);
-            _remoteRoles.remove(remoteUid);
             _remoteMuteStatus.remove(remoteUid);
             _userNames.remove(remoteUid);
-            _raisedHands.remove(remoteUid);
           });
         },
-        onClientRoleChanged: (connection, oldRole, newRole, newRoleOptions) {
-          setState(() {
-            _remoteRoles[_localUid] = newRole;
-            final isNowBroadcaster =
-                newRole == ClientRoleType.clientRoleBroadcaster;
-            _engine!.muteLocalAudioStream(!isNowBroadcaster);
-            _engine!.enableLocalVideo(isNowBroadcaster);
-            _isMicMuted = !isNowBroadcaster;
-            _isCameraOff = !isNowBroadcaster;
-          });
-        },
+        onRemoteAudioStateChanged:
+            (connection, remoteUid, state, reason, elapsed) {
+              setState(() {
+                final isMuted =
+                    state == RemoteAudioState.remoteAudioStateStopped;
+                _remoteMuteStatus[remoteUid] ??= {
+                  'audio': false,
+                  'video': false,
+                };
+                _remoteMuteStatus[remoteUid]!['audio'] = isMuted;
+              });
+            },
+        onRemoteVideoStateChanged:
+            (connection, remoteUid, state, reason, elapsed) {
+              setState(() {
+                final isOff = state == RemoteVideoState.remoteVideoStateStopped;
+                _remoteMuteStatus[remoteUid] ??= {
+                  'audio': false,
+                  'video': false,
+                };
+                _remoteMuteStatus[remoteUid]!['video'] = isOff;
+              });
+            },
+        onAudioVolumeIndication:
+            (connection, speakers, totalVolume, deviceVolume) {
+              int? speakingUid;
+
+              for (var speaker in speakers) {
+                final uid = speaker.uid == 0 ? _localUid : speaker.uid;
+
+                if (speaker.volume! > 5) {
+                  speakingUid = uid;
+                  break;
+                }
+              }
+
+              setState(() {
+                if (speakingUid != null && speakingUid != _activeSpeakerUid) {
+                  _activeSpeakerUid = speakingUid;
+                } else if (speakingUid == null &&
+                    _activeSpeakerUid != null &&
+                    totalVolume < 5) {
+                  _activeSpeakerUid = null;
+                }
+              });
+            },
       ),
     );
 
     await _engine!.enableVideo();
-    await _engine!.setClientRole(
-      role: widget.isHost
-          ? ClientRoleType.clientRoleBroadcaster
-          : ClientRoleType.clientRoleAudience,
-    );
+    await _engine!.setClientRole(role: _fixedRole);
 
-    _isMicMuted = !widget.isHost;
-    _isCameraOff = !widget.isHost;
+    await _engine!.muteLocalAudioStream(_isMicMuted);
+    await _engine!.enableLocalVideo(!_isCameraOff);
 
     await _engine!.joinChannel(
       token: token,
@@ -113,36 +136,30 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       uid: _localUid,
       options: ChannelMediaOptions(
         channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
-        clientRoleType: widget.isHost
-            ? ClientRoleType.clientRoleBroadcaster
-            : ClientRoleType.clientRoleAudience,
-        publishCameraTrack: widget.isHost,
-        publishMicrophoneTrack: widget.isHost,
+        clientRoleType: _fixedRole,
+        publishCameraTrack: true,
+        publishMicrophoneTrack: true,
         autoSubscribeVideo: true,
         autoSubscribeAudio: true,
       ),
     );
   }
 
-  void _toggleMic() {
-    if (!_isLocalBroadcaster) return;
+  void _toggleMic() async {
     setState(() => _isMicMuted = !_isMicMuted);
-    _engine!.muteLocalAudioStream(_isMicMuted);
+    await _engine!.muteLocalAudioStream(_isMicMuted);
   }
 
-  void _toggleCamera() {
-    if (!_isLocalBroadcaster) return;
+  void _toggleCamera() async {
     setState(() => _isCameraOff = !_isCameraOff);
-    _engine!.enableLocalVideo(!_isCameraOff);
+    await _engine!.enableLocalVideo(!_isCameraOff);
   }
 
   void _switchCamera() {
-    if (!_isLocalBroadcaster) return;
     _engine!.switchCamera();
   }
 
   void _toggleScreenShare() {
-    if (!_isLocalBroadcaster) return;
     setState(() => _isScreenSharing = !_isScreenSharing);
   }
 
@@ -151,24 +168,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   }
 
   void _endCall() => Navigator.of(context).pop();
-
-  void _promoteToSpeaker(int uid, bool promote) async {
-    if (!widget.isHost || uid == _localUid) return;
-    final newRole = promote
-        ? ClientRoleType.clientRoleBroadcaster
-        : ClientRoleType.clientRoleAudience;
-    await _engine!.setClientRole(
-      role: newRole,
-      options: const ClientRoleOptions(
-        audienceLatencyLevel:
-            AudienceLatencyLevelType.audienceLatencyLevelLowLatency,
-      ),
-    );
-    setState(() {
-      _remoteRoles[uid] = newRole;
-      if (promote) _raisedHands.remove(uid);
-    });
-  }
 
   @override
   void dispose() {
@@ -179,46 +178,51 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLocalBroadcaster = _isLocalBroadcaster;
+    final Map<int, ClientRoleType> allBroadcasters = {
+      _localUid: _fixedRole,
+      for (var uid in _remoteUids) uid: _fixedRole,
+    };
+
+    const bool isHost = true;
 
     return Scaffold(
       extendBodyBehindAppBar: false,
       appBar: AppBar(
         backgroundColor: Colors.black87,
-        title: Text(
-          '${widget.channelName} (${isLocalBroadcaster ? 'Live' : 'Watching'})',
-        ),
+        title: Text(widget.channelName),
         leading: IconButton(icon: const Icon(Icons.close), onPressed: _endCall),
       ),
       body: Column(
         children: [
           Expanded(
             flex: 5,
-            child: VideoGrid(
-              engine: _engine,
-              localUid: _localUid,
-              remoteUids: _remoteUids,
-              remoteRoles: _remoteRoles,
-              remoteMuteStatus: _remoteMuteStatus,
-              isLocalUserJoined: _localUserJoined,
-              isCameraOff: _isCameraOff,
-              isMicMuted: _isMicMuted,
-              isHost: widget.isHost,
-              channelName: widget.channelName,
-              userNames: _userNames,
-              raisedHands: _raisedHands,
-              onRoleChange: _promoteToSpeaker,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 15.0),
+              child: VideoGrid(
+                engine: _engine,
+                localUid: _localUid,
+                remoteUids: _remoteUids,
+                remoteRoles: allBroadcasters,
+                remoteMuteStatus: _remoteMuteStatus,
+                isLocalUserJoined: _localUserJoined,
+                isCameraOff: _isCameraOff,
+                isMicMuted: _isMicMuted,
+                channelName: widget.channelName,
+                userNames: _userNames,
+                raisedHands: _raisedHands,
+                onRoleChange: null,
+                activeSpeakerUid: _activeSpeakerUid,
+                isHost: isHost,
+              ),
             ),
           ),
           ControlBar(
-            isHost: widget.isHost,
-            isLocalBroadcaster: isLocalBroadcaster,
+            isHost: isHost,
+            isLocalBroadcaster: true,
             isMicMuted: _isMicMuted,
             isCameraOff: _isCameraOff,
             isScreenSharing: _isScreenSharing,
-            isHandRaised: !isLocalBroadcaster
-                ? (_raisedHands[_localUid] ?? false)
-                : false,
+            isHandRaised: false,
             onToggleMic: _toggleMic,
             onToggleCamera: _toggleCamera,
             onSwitchCamera: _switchCamera,
@@ -233,25 +237,21 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                 builder: (_) => ParticipantsList(
                   localUid: _localUid,
                   remoteUids: _remoteUids,
-                  remoteRoles: Map.from(_remoteRoles)..[_localUid] = _localRole,
+                  remoteRoles: allBroadcasters,
                   remoteMuteStatus: _remoteMuteStatus,
                   userNames: _userNames,
                   engine: _engine!,
-                  isHost: widget.isHost,
+                  isHost: isHost,
                   notifyParent: () => setState(() {}),
                   isLocalMicMuted: _isMicMuted,
                   isLocalCameraOff: _isCameraOff,
-                  onRoleChange: _promoteToSpeaker,
+                  onRoleChange: (_, __) {},
+                  raisedHands: _raisedHands,
                 ),
               );
             },
             onEndCall: _endCall,
-            onToggleHand: !isLocalBroadcaster
-                ? () => setState(
-                    () => _raisedHands[_localUid] =
-                        !(_raisedHands[_localUid] ?? false),
-                  )
-                : null,
+            onToggleHand: null,
           ),
         ],
       ),

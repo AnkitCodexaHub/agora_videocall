@@ -13,6 +13,7 @@ class ParticipantsList extends StatelessWidget {
   final bool isLocalMicMuted;
   final bool isLocalCameraOff;
   final Function(int uid, bool promote) onRoleChange;
+  final Map<int, bool> raisedHands;
 
   const ParticipantsList({
     super.key,
@@ -27,185 +28,84 @@ class ParticipantsList extends StatelessWidget {
     required this.isLocalMicMuted,
     required this.isLocalCameraOff,
     required this.onRoleChange,
+    required this.raisedHands,
   });
-
-  void _toggleRemoteAudioVideo(int uid, bool muteAudio) async {
-    if (!isHost) return;
-    final key = muteAudio ? 'audio' : 'video';
-    final current = remoteMuteStatus[uid]?[key] ?? false;
-    final newValue = !current;
-
-    if (muteAudio) {
-      await engine.muteRemoteAudioStream(uid: uid, mute: newValue);
-    } else {
-      await engine.muteRemoteVideoStream(uid: uid, mute: newValue);
-    }
-
-    remoteMuteStatus.putIfAbsent(uid, () => {'audio': false, 'video': false});
-    remoteMuteStatus[uid]![key] = newValue;
-    notifyParent();
-  }
-
-  void _toggleUserRole(int uid) {
-    if (!isHost) return;
-    final isBroadcaster =
-        remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster;
-    onRoleChange(uid, !isBroadcaster);
-    notifyParent();
-  }
 
   @override
   Widget build(BuildContext context) {
-    final allUids = [localUid, ...remoteUids];
+    final allUids = remoteUids.toList()..insert(0, localUid);
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.5,
-      minChildSize: 0.25,
-      maxChildSize: 0.8,
-      expand: false,
-      builder: (BuildContext context, ScrollController scrollController) =>
-          Container(
-            decoration: const BoxDecoration(
-              color: Color(0xFF111111),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Participants (${allUids.length})',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                const Divider(color: Colors.grey, height: 1),
-                Expanded(
-                  child: ListView.builder(
-                    controller: scrollController,
-                    itemCount: allUids.length,
-                    itemBuilder: (context, index) {
-                      final uid = allUids[index];
-                      final isLocal = uid == localUid;
-                      final displayName =
-                          userNames[uid] ?? (isLocal ? 'Me' : 'User $uid');
-                      final role =
-                          remoteRoles[uid] ?? ClientRoleType.clientRoleAudience;
-                      final isBroadcaster =
-                          role == ClientRoleType.clientRoleBroadcaster;
-
-                      final isAudioMuted = isLocal
-                          ? isLocalMicMuted
-                          : (remoteMuteStatus[uid]?['audio'] ?? false);
-                      final isVideoMuted = isLocal
-                          ? isLocalCameraOff
-                          : (remoteMuteStatus[uid]?['video'] ?? false);
-
-                      String roleLabel = isBroadcaster
-                          ? 'Broadcaster'
-                          : 'Audience';
-                      if (uid == localUid && isHost) {
-                        roleLabel = 'Host';
-                      } else if (uid == localUid)
-                        roleLabel = 'You ($roleLabel)';
-
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: isBroadcaster
-                              ? Colors.redAccent
-                              : Colors.blueGrey,
-                          child: Text(
-                            displayName[0],
-                            style: const TextStyle(color: Colors.white),
-                          ),
-                        ),
-                        title: Text(
-                          displayName,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        subtitle: Text(
-                          roleLabel,
-                          style: TextStyle(
-                            color: isBroadcaster
-                                ? Colors.redAccent
-                                : Colors.white70,
-                          ),
-                        ),
-                        trailing: isHost && !isLocal
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: Icon(
-                                      isAudioMuted ? Icons.mic_off : Icons.mic,
-                                      color: isAudioMuted
-                                          ? Colors.red
-                                          : Colors.green,
-                                    ),
-                                    onPressed: () =>
-                                        _toggleRemoteAudioVideo(uid, true),
-                                  ),
-                                  IconButton(
-                                    icon: Icon(
-                                      isVideoMuted
-                                          ? Icons.videocam_off
-                                          : Icons.videocam,
-                                      color: isVideoMuted
-                                          ? Colors.red
-                                          : Colors.green,
-                                    ),
-                                    onPressed: () =>
-                                        _toggleRemoteAudioVideo(uid, false),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => _toggleUserRole(uid),
-                                    child: Text(
-                                      isBroadcaster ? 'Demote' : 'Promote',
-                                      style: TextStyle(
-                                        color: isBroadcaster
-                                            ? Colors.deepOrange
-                                            : Colors.blue,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isAudioMuted ? Icons.mic_off : Icons.mic,
-                                    color: isAudioMuted
-                                        ? Colors.red
-                                        : Colors.green,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Icon(
-                                    isVideoMuted
-                                        ? Icons.videocam_off
-                                        : Icons.videocam,
-                                    color: isVideoMuted
-                                        ? Colors.red
-                                        : Colors.green,
-                                    size: 20,
-                                  ),
-                                ],
-                              ),
-                      );
-                    },
-                  ),
-                ),
-              ],
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.7,
+      decoration: const BoxDecoration(
+        color: Color(0xFF1F1F1F),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              'Participants (${allUids.length})',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
           ),
+          const Divider(color: Colors.white24, height: 1),
+          Expanded(
+            child: ListView.builder(
+              itemCount: allUids.length,
+              itemBuilder: (context, index) {
+                final uid = allUids[index];
+                final isLocal = uid == localUid;
+
+                final isAudioMuted = isLocal
+                    ? isLocalMicMuted
+                    : remoteMuteStatus[uid]?['audio'] ?? true;
+                final isVideoMuted = isLocal
+                    ? isLocalCameraOff
+                    : remoteMuteStatus[uid]?['video'] ?? true;
+                final isHandRaised = raisedHands[uid] ?? false;
+
+                String name = userNames[uid] ?? 'User $uid';
+                if (isLocal) name += ' (You)';
+
+                Widget controls = Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isHandRaised && !isLocal)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 8.0),
+                        child: Text('✋', style: TextStyle(fontSize: 20)),
+                      ),
+                    Icon(
+                      isAudioMuted ? Icons.mic_off : Icons.mic,
+                      color: isAudioMuted ? Colors.red : Colors.green,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      isVideoMuted ? Icons.videocam_off : Icons.videocam,
+                      color: isVideoMuted ? Colors.red : Colors.green,
+                      size: 20,
+                    ),
+                  ],
+                );
+
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isHost && isLocal
+                        ? Colors.blue
+                        : Colors.grey,
+                    child: Text(name.substring(0, 1)),
+                  ),
+                  title: Text(name, overflow: TextOverflow.ellipsis),
+                  trailing: controls,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

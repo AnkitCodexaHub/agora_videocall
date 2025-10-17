@@ -35,14 +35,11 @@ class _JoinScreenState extends State<JoinScreen> {
   );
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
-  void onJoin(BuildContext context, bool isHost) {
+  void onJoin(BuildContext context) {
     if (_formKey.currentState!.validate()) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => VideoCallScreen(
-            channelName: _channelController.text,
-            isHost: isHost,
-          ),
+          builder: (_) => VideoCallScreen(channelName: _channelController.text),
         ),
       );
     }
@@ -87,15 +84,9 @@ class _JoinScreenState extends State<JoinScreen> {
                 ),
                 const SizedBox(height: 40),
                 ElevatedButton.icon(
-                  icon: const Icon(Icons.videocam),
-                  label: const Text("Start Meeting (Host)"),
-                  onPressed: () => onJoin(context, true),
-                ),
-                const SizedBox(height: 20),
-                OutlinedButton.icon(
                   icon: const Icon(Icons.group),
-                  label: const Text("Join Meeting (Participant)"),
-                  onPressed: () => onJoin(context, false),
+                  label: const Text("Join Meeting"),
+                  onPressed: () => onJoin(context),
                 ),
               ],
             ),

@@ -55,31 +55,33 @@ class ControlBar extends StatelessWidget {
   Widget build(BuildContext context) {
     List<Widget> buttons = [];
 
-    // Broadcaster controls
+    buttons.add(
+      _buildButton(
+        isMicMuted ? Icons.mic_off : Icons.mic,
+        isMicMuted ? Colors.red : Colors.green,
+        onToggleMic,
+      ),
+    );
+
+    buttons.add(
+      _buildButton(
+        isCameraOff ? Icons.videocam_off : Icons.videocam,
+        isCameraOff ? Colors.red : Colors.blue,
+        onToggleCamera,
+      ),
+    );
+
+    if (!isCameraOff) {
+      buttons.add(
+        _buildButton(
+          Icons.flip_camera_ios,
+          Colors.white.withValues(alpha: 0.2),
+          onSwitchCamera,
+        ),
+      );
+    }
+
     if (isLocalBroadcaster) {
-      buttons.add(
-        _buildButton(
-          isMicMuted ? Icons.mic_off : Icons.mic,
-          isMicMuted ? Colors.red : Colors.green,
-          onToggleMic,
-        ),
-      );
-      buttons.add(
-        _buildButton(
-          isCameraOff ? Icons.videocam_off : Icons.videocam,
-          isCameraOff ? Colors.red : Colors.green,
-          onToggleCamera,
-        ),
-      );
-      if (!isCameraOff) {
-        buttons.add(
-          _buildButton(
-            Icons.switch_camera,
-            Colors.white.withValues(alpha: 0.2),
-            onSwitchCamera,
-          ),
-        );
-      }
       buttons.add(
         _buildButton(
           isScreenSharing ? Icons.stop_screen_share : Icons.screen_share,
@@ -89,23 +91,23 @@ class ControlBar extends StatelessWidget {
       );
     }
 
-    // Hand raise button (for participants only)
-    if (onToggleHand != null) {
+    if (!isLocalBroadcaster && onToggleHand != null) {
       buttons.add(
         _buildButton(
-          isHandRaised ? Icons.pan_tool : Icons.waving_hand,
-          isHandRaised ? Colors.yellow[700]! : const Color(0xFFE4405F),
+          Icons.waving_hand,
+          isHandRaised
+              ? Colors.yellow[700]!
+              : Colors.white.withValues(alpha: 0.2),
           onToggleHand!,
+          iconColor: isHandRaised ? Colors.black : Colors.white,
         ),
       );
     }
 
-    // Share button (all users)
     buttons.add(
       _buildButton(Icons.share, Colors.white.withValues(alpha: 0.2), onShare),
     );
 
-    // Participants list button (all users)
     buttons.add(
       _buildButton(
         Icons.people,
@@ -114,7 +116,6 @@ class ControlBar extends StatelessWidget {
       ),
     );
 
-    // End call button (all users)
     buttons.add(
       _buildButton(Icons.call_end, const Color(0xFFE4405F), onEndCall),
     );
