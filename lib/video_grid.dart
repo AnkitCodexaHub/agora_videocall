@@ -192,7 +192,7 @@ class _VideoGridState extends State<VideoGrid> {
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: isTileAudioMuted
-                      ? Colors.red.withOpacity(0.8)
+                      ? Colors.red.withValues(alpha: 0.8)
                       : Colors.black54,
                   borderRadius: BorderRadius.circular(10),
                 ),
