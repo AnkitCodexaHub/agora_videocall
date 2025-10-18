@@ -35,11 +35,11 @@ class ControlBar extends StatelessWidget {
   });
 
   Widget _buildButton(
-    IconData icon,
-    Color color,
-    VoidCallback onPressed, {
-    Color iconColor = Colors.white,
-  }) {
+      IconData icon,
+      Color color,
+      VoidCallback onPressed, {
+        Color iconColor = Colors.white,
+      }) {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
@@ -55,67 +55,72 @@ class ControlBar extends StatelessWidget {
   Widget build(BuildContext context) {
     List<Widget> buttons = [];
 
-    buttons.add(
-      _buildButton(
-        isMicMuted ? Icons.mic_off : Icons.mic,
-        isMicMuted ? Colors.red : Colors.green,
-        onToggleMic,
-      ),
-    );
-
-    buttons.add(
-      _buildButton(
-        isCameraOff ? Icons.videocam_off : Icons.videocam,
-        isCameraOff ? Colors.red : Colors.blue,
-        onToggleCamera,
-      ),
-    );
-
-    if (!isCameraOff) {
+    if (isHost) {
+      // Host: Show ALL controls
       buttons.add(
         _buildButton(
-          Icons.flip_camera_ios,
-          Colors.white.withValues(alpha: 0.2),
-          onSwitchCamera,
+          isMicMuted ? Icons.mic_off : Icons.mic,
+          isMicMuted ? Colors.red : Colors.green,
+          onToggleMic,
         ),
       );
-    }
 
-    if (isLocalBroadcaster) {
       buttons.add(
         _buildButton(
-          isScreenSharing ? Icons.stop_screen_share : Icons.screen_share,
-          isScreenSharing ? Colors.red : Colors.blue,
-          onToggleScreenShare,
+          isCameraOff ? Icons.videocam_off : Icons.videocam,
+          isCameraOff ? Colors.red : Colors.blue,
+          onToggleCamera,
         ),
       );
-    }
 
-    if (!isLocalBroadcaster && onToggleHand != null) {
+      if (!isCameraOff) {
+        buttons.add(
+          _buildButton(
+            Icons.flip_camera_ios,
+            Colors.white.withOpacity(0.2),
+            onSwitchCamera,
+          ),
+        );
+      }
+
+      if (isLocalBroadcaster) {
+        buttons.add(
+          _buildButton(
+            isScreenSharing ? Icons.stop_screen_share : Icons.screen_share,
+            isScreenSharing ? Colors.red : Colors.blue,
+            onToggleScreenShare,
+          ),
+        );
+      }
+
       buttons.add(
         _buildButton(
-          Icons.waving_hand,
-          isHandRaised
-              ? Colors.yellow[700]!
-              : Colors.white.withValues(alpha: 0.2),
-          onToggleHand!,
-          iconColor: isHandRaised ? Colors.black : Colors.white,
+          Icons.people,
+          Colors.white.withOpacity(0.2),
+          onShowParticipants,
         ),
       );
+
+      buttons.add(
+        _buildButton(Icons.share, Colors.white.withOpacity(0.2), onShare),
+      );
+    } else {
+      // Participant (Not Host): Show ONLY Raise Hand and End Call
+      if (onToggleHand != null) {
+        buttons.add(
+          _buildButton(
+            Icons.waving_hand,
+            isHandRaised
+                ? Colors.yellow[700]!
+                : Colors.white.withOpacity(0.2),
+            onToggleHand!,
+            iconColor: isHandRaised ? Colors.black : Colors.white,
+          ),
+        );
+      }
     }
 
-    buttons.add(
-      _buildButton(Icons.share, Colors.white.withValues(alpha: 0.2), onShare),
-    );
-
-    buttons.add(
-      _buildButton(
-        Icons.people,
-        Colors.white.withValues(alpha: 0.2),
-        onShowParticipants,
-      ),
-    );
-
+    // End Call button is always added (last button)
     buttons.add(
       _buildButton(Icons.call_end, const Color(0xFFE4405F), onEndCall),
     );
@@ -133,10 +138,10 @@ class ControlBar extends StatelessWidget {
                 children: buttons
                     .map(
                       (widget) => Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                        child: widget,
-                      ),
-                    )
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: widget,
+                  ),
+                )
                     .toList(),
               ),
             ),

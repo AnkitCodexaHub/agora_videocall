@@ -41,68 +41,18 @@ class VideoGrid extends StatefulWidget {
 }
 
 class _VideoGridState extends State<VideoGrid> {
-  int _pinnedUid = 0;
+  late int _pinnedUid;
 
   @override
   void initState() {
     super.initState();
     _pinnedUid = widget.localUid;
-    _updatePinnedUid();
   }
 
-  @override
-  void didUpdateWidget(VideoGrid oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.remoteUids != oldWidget.remoteUids ||
-        widget.activeSpeakerUid != oldWidget.activeSpeakerUid ||
-        widget.isCameraOff != oldWidget.isCameraOff) {
-      _updatePinnedUid();
-    }
-  }
-
-  void _updatePinnedUid() {
-    final List<int> allUids = [widget.localUid, ...widget.remoteUids];
-    int? newPinnedCandidate;
-
-    bool isVideoOff(int uid) {
-      if (uid == widget.localUid) {
-        return widget.isCameraOff;
-      }
-      return widget.remoteMuteStatus[uid]?['video'] ?? true;
-    }
-
-    if (widget.activeSpeakerUid != null &&
-        allUids.contains(widget.activeSpeakerUid) &&
-        !isVideoOff(widget.activeSpeakerUid!)) {
-      newPinnedCandidate = widget.activeSpeakerUid!;
-    }
-
-    if (newPinnedCandidate == null &&
-        allUids.contains(_pinnedUid) &&
-        !isVideoOff(_pinnedUid)) {
-      newPinnedCandidate = _pinnedUid;
-    }
-
-    if (newPinnedCandidate == null && !widget.isCameraOff) {
-      newPinnedCandidate = widget.localUid;
-    }
-
-    if (newPinnedCandidate == null) {
-      for (final uid in widget.remoteUids) {
-        if (!isVideoOff(uid)) {
-          newPinnedCandidate = uid;
-          break;
-        }
-      }
-    }
-
-    if (newPinnedCandidate == null || newPinnedCandidate == 0) {
-      newPinnedCandidate = widget.localUid;
-    }
-
-    if (newPinnedCandidate != _pinnedUid) {
-      setState(() => _pinnedUid = newPinnedCandidate!);
-    }
+  void _onTapVideo(int uid) {
+    setState(() {
+      _pinnedUid = uid;
+    });
   }
 
   Widget _videoTile({
@@ -110,120 +60,146 @@ class _VideoGridState extends State<VideoGrid> {
     required bool isLocal,
     double borderRadius = 12,
   }) {
-    final isTileAudioMuted = isLocal
+    final String userName = widget.userNames[uid] ?? 'User $uid';
+    final String displayName = isLocal ? '$userName (You)' : userName;
+
+    final bool isMuted = isLocal
         ? widget.isMicMuted
-        : widget.remoteMuteStatus[uid]?['audio'] ?? true;
-    final isTileVideoOff = isLocal
+        : (widget.remoteMuteStatus[uid]?['audio'] ?? false);
+    final bool isCameraOff = isLocal
         ? widget.isCameraOff
-        : widget.remoteMuteStatus[uid]?['video'] ?? true;
+        : (widget.remoteMuteStatus[uid]?['video'] ?? false);
+    final bool isHandRaised = widget.raisedHands[uid] ?? false;
 
-    String displayName = widget.userNames[uid] ?? 'User $uid';
-    if (isLocal) {
-      displayName += ' (You)';
-    }
+    final bool isBroadcaster = isLocal ||
+        (widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster);
+    final bool isActiveSpeaker = widget.activeSpeakerUid == uid;
 
-    Widget videoWidget;
-    if (widget.engine == null || isTileVideoOff) {
-      videoWidget = Center(
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.black54,
-            borderRadius: BorderRadius.circular(borderRadius),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.videocam_off_rounded,
-                size: 30,
-                color: Colors.white,
-              ),
-            ],
-          ),
-        ),
-      );
-    } else {
-      videoWidget = isLocal
-          ? agora.AgoraVideoView(
-        controller: agora.VideoViewController(
-          rtcEngine: widget.engine!,
-          canvas: const agora.VideoCanvas(uid: 0),
-        ),
-      )
-          : agora.AgoraVideoView(
-        controller: agora.VideoViewController.remote(
-          rtcEngine: widget.engine!,
-          canvas: agora.VideoCanvas(uid: uid),
-          connection: agora.RtcConnection(channelId: widget.channelName),
-        ),
-      );
-    }
-
-    Color? borderColor;
-    if (_pinnedUid == uid) {
-      if (widget.activeSpeakerUid == uid && !isTileVideoOff) {
-        borderColor = Colors.redAccent;
-      } else {
-        borderColor = Colors.blue;
-      }
-    }
+    final Color borderColor = isActiveSpeaker
+        ? const Color(0xFF4A90E2)
+        : Colors.transparent;
 
     return GestureDetector(
-      onTap: () {
-        if (_pinnedUid != uid) setState(() => _pinnedUid = uid);
-      },
+      onTap: () => _onTapVideo(uid),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.black,
           borderRadius: BorderRadius.circular(borderRadius),
-          border: borderColor != null
-              ? Border.all(color: borderColor, width: 3)
-              : null,
+          border: Border.all(
+            color: borderColor,
+            width: 3.0,
+          ),
         ),
-        clipBehavior: Clip.hardEdge,
-        child: Stack(
-          children: [
-            Positioned.fill(child: videoWidget),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isTileAudioMuted
-                      ? Colors.red.withValues(alpha: 0.8)
-                      : Colors.black54,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      isTileAudioMuted ? Icons.mic_off : Icons.mic,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        displayName,
-                        style: const TextStyle(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // 1. Video View
+              if (isBroadcaster && !isCameraOff && widget.engine != null)
+                isLocal
+                    ? agora.AgoraVideoView(
+                  controller: agora.VideoViewController(
+                    rtcEngine: widget.engine!,
+                    canvas: const agora.VideoCanvas(uid: 0),
+                  ),
+                )
+                    : agora.AgoraVideoView(
+                  controller: agora.VideoViewController.remote(
+                    rtcEngine: widget.engine!,
+                    canvas: agora.VideoCanvas(uid: uid),
+                    connection: agora.RtcConnection(
+                        channelId: widget.channelName),
+                  ),
+                )
+              else
+              // 2. Camera Off Placeholder (Display Name is here)
+                Container(
+                  color: Colors.black,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.videocam_off,
                           color: Colors.white,
-                          fontSize: 12,
+                          size: 40,
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        const SizedBox(height: 8),
+                        // Display the user's name
+                        Text(
+                          displayName,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                ),
+
+              // 3. Name and Status Overlay (Always visible)
+              Align(
+                alignment: Alignment.bottomLeft,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Mute Icon
+                      Icon(
+                        isMuted ? Icons.mic_off : Icons.mic,
+                        color: isMuted ? Colors.red : Colors.green,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Hand Raised Icon
+                      if (isHandRaised)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8.0),
+                          child: Text('✋', style: TextStyle(fontSize: 20)),
+                        ),
+
+                      // User Name
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            displayName, // Display the user's name
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 14),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+
+              // Host Badge Overlay
+              if (widget.isHost && isLocal)
+                const Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Icon(
+                      Icons.star,
+                      color: Colors.yellow,
+                      size: 20,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
+  // --- END OF MODIFIED METHOD ---
 
   @override
   Widget build(BuildContext context) {
@@ -238,6 +214,7 @@ class _VideoGridState extends State<VideoGrid> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Main/Pinned Video
         Expanded(
           flex: 5,
           child: _videoTile(
@@ -248,6 +225,7 @@ class _VideoGridState extends State<VideoGrid> {
         ),
         if (smallUids.isNotEmpty) const SizedBox(height: 8),
 
+        // Small Video Grid (Horizontal Scroll)
         if (smallUids.isNotEmpty)
           SizedBox(
             height: 120,

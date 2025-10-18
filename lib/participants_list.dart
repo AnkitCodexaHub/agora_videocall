@@ -1,3 +1,5 @@
+// participants_list.dart
+
 import 'package:flutter/material.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 
@@ -14,6 +16,8 @@ class ParticipantsList extends StatelessWidget {
   final bool isLocalCameraOff;
   final Function(int uid, bool promote) onRoleChange;
   final Map<int, bool> raisedHands;
+  final Function(int uid, bool isMuted) onToggleRemoteMic;
+  final Function(int uid, bool isOff) onToggleRemoteCamera;
 
   const ParticipantsList({
     super.key,
@@ -29,7 +33,36 @@ class ParticipantsList extends StatelessWidget {
     required this.isLocalCameraOff,
     required this.onRoleChange,
     required this.raisedHands,
+    required this.onToggleRemoteMic,
+    required this.onToggleRemoteCamera,
   });
+
+  Widget _buildMuteButton({
+    required IconData icon,
+    required bool isMuted,
+    required VoidCallback onPressed,
+    required bool isClickable,
+  }) {
+    if (!isClickable) {
+      return Icon(
+        icon,
+        color: isMuted ? Colors.red : Colors.green,
+        size: 20,
+      );
+    }
+
+    return IconButton(
+      icon: Icon(
+        icon,
+        color: isMuted ? Colors.red : Colors.green,
+        size: 20,
+      ),
+      onPressed: onPressed,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      splashRadius: 20,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,19 +71,34 @@ class ParticipantsList extends StatelessWidget {
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
       decoration: const BoxDecoration(
-        color: Color(0xFF1F1F1F),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+        color: Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
       ),
       child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'Participants (${allUids.length})',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "Participants (${allUids.length})",
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
             ),
           ),
-          const Divider(color: Colors.white24, height: 1),
           Expanded(
             child: ListView.builder(
               itemCount: allUids.length,
@@ -60,33 +108,47 @@ class ParticipantsList extends StatelessWidget {
 
                 final isAudioMuted = isLocal
                     ? isLocalMicMuted
-                    : remoteMuteStatus[uid]?['audio'] ?? true;
+                    : remoteMuteStatus[uid]?['audio'] ?? false;
                 final isVideoMuted = isLocal
                     ? isLocalCameraOff
-                    : remoteMuteStatus[uid]?['video'] ?? true;
+                    : remoteMuteStatus[uid]?['video'] ?? false;
                 final isHandRaised = raisedHands[uid] ?? false;
 
                 String name = userNames[uid] ?? 'User $uid';
                 if (isLocal) name += ' (You)';
 
+                const bool canToggle = true;
+
                 Widget controls = Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (isHandRaised && !isLocal)
+
+                    if (isHandRaised)
                       const Padding(
                         padding: EdgeInsets.only(right: 8.0),
                         child: Text('✋', style: TextStyle(fontSize: 20)),
                       ),
-                    Icon(
-                      isAudioMuted ? Icons.mic_off : Icons.mic,
-                      color: isAudioMuted ? Colors.red : Colors.green,
-                      size: 20,
+
+                    // Audio Control Icon
+                    _buildMuteButton(
+                      icon: isAudioMuted ? Icons.mic_off : Icons.mic,
+                      isMuted: isAudioMuted,
+                      isClickable: canToggle, // All users can click
+                      onPressed: () {
+                        // The function in VideoCallScreen handles toggling local or remote stream
+                        onToggleRemoteMic(uid, !isAudioMuted);
+                      },
                     ),
                     const SizedBox(width: 8),
-                    Icon(
-                      isVideoMuted ? Icons.videocam_off : Icons.videocam,
-                      color: isVideoMuted ? Colors.red : Colors.green,
-                      size: 20,
+
+                    // Video Control Icon
+                    _buildMuteButton(
+                      icon: isVideoMuted ? Icons.videocam_off : Icons.videocam,
+                      isMuted: isVideoMuted,
+                      isClickable: canToggle,
+                      onPressed: () {
+                        onToggleRemoteCamera(uid, !isVideoMuted);
+                      },
                     ),
                   ],
                 );
