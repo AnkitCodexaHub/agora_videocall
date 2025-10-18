@@ -42,19 +42,11 @@ class ParticipantsList extends StatelessWidget {
     required bool isClickable,
   }) {
     if (!isClickable) {
-      return Icon(
-        icon,
-        color: isMuted ? Colors.red : Colors.green,
-        size: 20,
-      );
+      return Icon(icon, color: isMuted ? Colors.red : Colors.green, size: 20);
     }
 
     return IconButton(
-      icon: Icon(
-        icon,
-        color: isMuted ? Colors.red : Colors.green,
-        size: 20,
-      ),
+      icon: Icon(icon, color: isMuted ? Colors.red : Colors.green, size: 20),
       onPressed: onPressed,
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(),
@@ -120,7 +112,6 @@ class ParticipantsList extends StatelessWidget {
                 Widget controls = Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-
                     if (isHandRaised)
                       const Padding(
                         padding: EdgeInsets.only(right: 8.0),

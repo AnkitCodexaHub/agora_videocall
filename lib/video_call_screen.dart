@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -24,6 +25,7 @@ class VideoCallScreen extends StatefulWidget {
 }
 
 class _VideoCallScreenState extends State<VideoCallScreen> {
+  // NOTE: Replace with your actual token generation logic in a production app
   static const String appId = "2264731781464d4e8764ce1c02be1c46";
   static const String token =
       "007eJxTYLj8ar9N3JtuMe713pxVp7cb3lH4ae71ckkQc4vFtMBz84MUGIyMzEzMjQ3NLQxNzExSTFItzM1MklMNkw2MkoCkiZlV/OeMhkBGhk+pOUyMDBAI4rMwlKQWlzAwAAAuXx7+";
@@ -44,6 +46,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   int? _activeSpeakerUid;
   final Map<int, bool> _raisedHands = {};
 
+  int? _dataStreamId;
   final ClientRoleType _fixedRole = ClientRoleType.clientRoleBroadcaster;
 
   @override
@@ -53,22 +56,53 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     _initAgora();
   }
 
+  @override
+  void dispose() {
+    _engine?.leaveChannel();
+    _engine?.release();
+    super.dispose();
+  }
+
   Future<void> _initAgora() async {
     await [Permission.microphone, Permission.camera].request();
 
     _engine = createAgoraRtcEngine();
     await _engine!.initialize(const RtcEngineContext(appId: appId));
 
-    await _engine!.enableAudioVolumeIndication(
-      interval: 200,
-      smooth: 3,
-      reportVad: true,
-    );
+    await _engine!.enableAudio();
+    await _engine!.enableVideo();
 
+    await _engine!.setClientRole(role: _fixedRole);
+
+    try {
+      await _engine!.enableAudioVolumeIndication(
+        interval: 200,
+        smooth: 3,
+        reportVad: true,
+      );
+    } catch (e) {
+      debugPrint("Audio volume indication failed: $e");
+    }
+
+    // Create Data Stream
+    try {
+      final streamConfig = DataStreamConfig(
+        syncWithAudio: false,
+        ordered: true,
+      );
+      _dataStreamId = await _engine!.createDataStream(streamConfig);
+      debugPrint("Data stream created: $_dataStreamId");
+    } catch (e) {
+      debugPrint("Data stream creation failed: $e");
+    }
+
+    // Event Handlers
     _engine!.registerEventHandler(
       RtcEngineEventHandler(
-        onJoinChannelSuccess: (connection, elapsed) =>
-            setState(() => _localUserJoined = true),
+        onJoinChannelSuccess: (connection, elapsed) {
+          setState(() => _localUserJoined = true);
+          _sendName(); // Send name on successful join
+        },
         onUserJoined: (connection, remoteUid, elapsed) {
           setState(() {
             _remoteUids.add(remoteUid);
@@ -86,55 +120,66 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         },
         onRemoteAudioStateChanged:
             (connection, remoteUid, state, reason, elapsed) {
-              setState(() {
-                final isMuted =
-                    state == RemoteAudioState.remoteAudioStateStopped;
-                _remoteMuteStatus[remoteUid] ??= {
-                  'audio': false,
-                  'video': false,
-                };
-                _remoteMuteStatus[remoteUid]!['audio'] = isMuted;
-              });
-            },
+          final isMuted = state == RemoteAudioState.remoteAudioStateStopped;
+          setState(() {
+            _remoteMuteStatus[remoteUid] ??= {
+              'audio': false,
+              'video': false,
+            };
+            _remoteMuteStatus[remoteUid]!['audio'] = isMuted;
+          });
+        },
         onRemoteVideoStateChanged:
             (connection, remoteUid, state, reason, elapsed) {
-              setState(() {
-                final isOff = state == RemoteVideoState.remoteVideoStateStopped;
-                _remoteMuteStatus[remoteUid] ??= {
-                  'audio': false,
-                  'video': false,
-                };
-                _remoteMuteStatus[remoteUid]!['video'] = isOff;
-              });
-            },
+          final isOff = state == RemoteVideoState.remoteVideoStateStopped;
+          setState(() {
+            _remoteMuteStatus[remoteUid] ??= {
+              'audio': false,
+              'video': false,
+            };
+            _remoteMuteStatus[remoteUid]!['video'] = isOff;
+          });
+        },
         onAudioVolumeIndication:
             (connection, speakers, totalVolume, deviceVolume) {
-              int? speakingUid;
+          int? speakingUid;
+          for (var speaker in speakers) {
+            final uid = speaker.uid == 0 ? _localUid : speaker.uid;
+            if (speaker.volume! > 5) {
+              speakingUid = uid;
+              break;
+            }
+          }
+          setState(() {
+            if (speakingUid != null && speakingUid != _activeSpeakerUid) {
+              _activeSpeakerUid = speakingUid;
+            } else if (speakingUid == null &&
+                _activeSpeakerUid != null &&
+                totalVolume < 5) {
+              _activeSpeakerUid = null;
+            }
+          });
+        },
+        onStreamMessage:
+            (connection, remoteUid, streamId, data, length, sentTs) {
+          if (streamId == _dataStreamId) {
+            final message = String.fromCharCodes(data);
 
-              for (var speaker in speakers) {
-                final uid = speaker.uid == 0 ? _localUid : speaker.uid;
-
-                if (speaker.volume! > 5) {
-                  speakingUid = uid;
-                  break;
-                }
-              }
-
+            if (message.startsWith('NAME:')) {
+              // Extracts the name after 'NAME:' and updates the map
+              final remoteName = message.substring(5);
               setState(() {
-                if (speakingUid != null && speakingUid != _activeSpeakerUid) {
-                  _activeSpeakerUid = speakingUid;
-                } else if (speakingUid == null &&
-                    _activeSpeakerUid != null &&
-                    totalVolume < 5) {
-                  _activeSpeakerUid = null;
-                }
+                _userNames[remoteUid] = remoteName;
               });
-            },
+              _refreshParticipantsList();
+            } else if (message == 'END_MEETING') {
+              // Handle host ending the call for everyone
+              _handleRemoteEndCall();
+            }
+          }
+        },
       ),
     );
-
-    await _engine!.enableVideo();
-    await _engine!.setClientRole(role: _fixedRole);
 
     await _engine!.muteLocalAudioStream(_isMicMuted);
     await _engine!.enableLocalVideo(!_isCameraOff);
@@ -152,6 +197,19 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         autoSubscribeAudio: true,
       ),
     );
+  }
+
+  // FIX: _sendName method is now correctly defined with a closing brace.
+  void _sendName() {
+    if (_engine != null && _dataStreamId != null) {
+      final message = 'NAME:${widget.userName}';
+      final data = Uint8List.fromList(message.codeUnits);
+      _engine!.sendStreamMessage(
+        streamId: _dataStreamId!,
+        data: data,
+        length: data.length, // FIX: Corrected length argument
+      );
+    }
   }
 
   void _toggleMic() async {
@@ -175,6 +233,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   void _toggleHand() {
     if (!widget.isHost) {
       setState(() => _isHandRaised = !_isHandRaised);
+      // Logic for sending hand status via data stream (if implemented)
       if (_isHandRaised) {
         _raisedHands[_localUid] = true;
       } else {
@@ -189,13 +248,11 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       _toggleMic();
       return;
     }
-
-    await _engine!.muteRemoteAudioStream(uid: uid, mute: isMuted);
-
-    setState(() {
-      _remoteMuteStatus[uid]!['audio'] = isMuted;
-    });
-    _refreshParticipantsList();
+    if (widget.isHost) {
+      await _engine!.muteRemoteAudioStream(uid: uid, mute: isMuted);
+      setState(() => _remoteMuteStatus[uid]!['audio'] = isMuted);
+      _refreshParticipantsList();
+    }
   }
 
   void _toggleRemoteCamera(int uid, bool isOff) async {
@@ -203,31 +260,103 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       _toggleCamera();
       return;
     }
-
-    await _engine!.muteRemoteVideoStream(uid: uid, mute: isOff);
-
-    setState(() {
-      _remoteMuteStatus[uid]!['video'] = isOff;
-    });
-    _refreshParticipantsList();
+    if (widget.isHost) {
+      await _engine!.muteRemoteVideoStream(uid: uid, mute: isOff);
+      setState(() => _remoteMuteStatus[uid]!['video'] = isOff);
+      _refreshParticipantsList();
+    }
   }
 
   void _shareMeetingLink() {
     Share.share('Join my live meeting: ${widget.channelName}');
   }
 
-  void _endCall() => Navigator.of(context).pop();
-
-  void _refreshParticipantsList() {
-    setState(() {});
+  void _endCall() {
+    if (widget.isHost) {
+      _showHostEndMeetingDialog();
+    } else {
+      _engine?.leaveChannel();
+      Navigator.of(context).pop();
+    }
   }
 
-  @override
-  void dispose() {
+  // FIX: Added assumed missing handler for remote end call
+  void _handleRemoteEndCall() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('The host has ended the meeting.'),
+        duration: Duration(seconds: 3),
+      ),
+    );
     _engine?.leaveChannel();
-    _engine?.release();
-    super.dispose();
+    Navigator.of(context).pop();
   }
+
+  void _showHostEndMeetingDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('End Meeting?'),
+          content: const Text(
+            'As the host, you can choose to end the meeting for everyone or just leave yourself.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _engine?.leaveChannel();
+                Navigator.of(this.context).pop();
+              },
+              child: const Text('Leave Meeting'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE4405F),
+              ),
+              onPressed: () {
+                // Broadcast END_MEETING to all participants
+                if (_engine != null && _dataStreamId != null) {
+                  final message = 'END_MEETING';
+                  final data = Uint8List.fromList(message.codeUnits);
+
+                  // FIX: Corrected length parameter to data.length
+                  _engine!.sendStreamMessage(
+                    streamId: _dataStreamId!,
+                    data: data,
+                    length: data.length,
+                  );
+                }
+
+                // Clear host local state
+                setState(() {
+                  _remoteUids.clear();
+                  _remoteMuteStatus.clear();
+                  _userNames.removeWhere((key, value) => key != _localUid);
+                  _raisedHands.clear();
+                  _activeSpeakerUid = null;
+                });
+
+                Navigator.of(context).pop(); // Close dialog
+                _engine?.leaveChannel();
+                Navigator.of(this.context).pop(); // Leave host screen
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Meeting ended for all participants.'),
+                    duration: Duration(seconds: 3),
+                  ),
+                );
+              },
+              child: const Text('End Meeting for All'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _refreshParticipantsList() => setState(() {});
 
   @override
   Widget build(BuildContext context) {
@@ -239,7 +368,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     final bool isHost = widget.isHost;
 
     return Scaffold(
-      extendBodyBehindAppBar: false,
       appBar: AppBar(
         backgroundColor: Colors.black87,
         title: Text(widget.channelName),
