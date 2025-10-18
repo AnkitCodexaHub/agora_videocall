@@ -56,6 +56,7 @@ class ParticipantsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Combine local and remote UIDs
     final allUids = remoteUids.toList()..insert(0, localUid);
 
     return Container(
@@ -69,6 +70,7 @@ class ParticipantsList extends StatelessWidget {
       ),
       child: Column(
         children: [
+          // Header
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
@@ -89,12 +91,15 @@ class ParticipantsList extends StatelessWidget {
               ],
             ),
           ),
+          // Participants List
           Expanded(
             child: ListView.builder(
               itemCount: allUids.length,
               itemBuilder: (context, index) {
                 final uid = allUids[index];
                 final isLocal = uid == localUid;
+                final isBroadcaster = remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster;
+                final name = userNames[uid] ?? 'Participant $uid';
 
                 final isAudioMuted = isLocal
                     ? isLocalMicMuted
@@ -102,38 +107,50 @@ class ParticipantsList extends StatelessWidget {
                 final isVideoMuted = isLocal
                     ? isLocalCameraOff
                     : remoteMuteStatus[uid]?['video'] ?? false;
-                final isHandRaised = raisedHands[uid] ?? false;
 
-                String name = userNames[uid] ?? 'User $uid';
-                if (isLocal) name += ' (You)';
+                final isHandRaised = raisedHands[uid] ?? false; // Check for raised hand status
 
-                const bool canToggle = true;
+                // Only the host can toggle remote status
+                final bool canToggle = isHost && !isLocal;
 
                 Widget controls = Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Raised Hand Icon (✋)
                     if (isHandRaised)
                       const Padding(
                         padding: EdgeInsets.only(right: 8.0),
                         child: Text('✋', style: TextStyle(fontSize: 20)),
                       ),
 
+                    // Mic Mute Button
                     _buildMuteButton(
                       icon: isAudioMuted ? Icons.mic_off : Icons.mic,
                       isMuted: isAudioMuted,
-                      isClickable: canToggle,
+                      isClickable: canToggle || isLocal, // Local user can toggle their own mic
                       onPressed: () {
-                        onToggleRemoteMic(uid, !isAudioMuted);
+                        // Pass local or remote status to the handler
+                        if (isLocal) {
+                          onToggleRemoteMic(uid, !isAudioMuted);
+                        } else if (canToggle) {
+                          onToggleRemoteMic(uid, !isAudioMuted);
+                        }
                       },
                     ),
                     const SizedBox(width: 8),
 
+                    // Camera Mute Button
                     _buildMuteButton(
                       icon: isVideoMuted ? Icons.videocam_off : Icons.videocam,
                       isMuted: isVideoMuted,
-                      isClickable: canToggle,
+                      isClickable: canToggle || isLocal, // Local user can toggle their own camera
                       onPressed: () {
-                        onToggleRemoteCamera(uid, !isVideoMuted);
+                        // Pass local or remote status to the handler
+                        if (isLocal) {
+                          onToggleRemoteCamera(uid, !isVideoMuted);
+                        } else if (canToggle) {
+                          onToggleRemoteCamera(uid, !isVideoMuted);
+                        }
                       },
                     ),
                   ],
@@ -142,11 +159,15 @@ class ParticipantsList extends StatelessWidget {
                 return ListTile(
                   leading: CircleAvatar(
                     backgroundColor: isHost && isLocal
-                        ? Colors.blue
+                        ? Colors.blue // Host's own avatar color
                         : Colors.grey,
-                    child: Text(name.substring(0, 1)),
+                    child: Text(name.substring(0, 1), style: const TextStyle(color: Colors.white)),
                   ),
-                  title: Text(name, overflow: TextOverflow.ellipsis),
+                  title: Text(
+                    name + (isLocal ? ' (You)' : ''),
+                    style: const TextStyle(color: Colors.white),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   trailing: controls,
                 );
               },

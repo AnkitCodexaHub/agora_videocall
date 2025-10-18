@@ -41,10 +41,10 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   bool _isMicMuted = true;
   bool _isCameraOff = true;
   bool _isScreenSharing = false;
-  bool _isHandRaised = false;
+  bool _isHandRaised = false; // Local hand status
 
   int? _activeSpeakerUid;
-  final Map<int, bool> _raisedHands = {};
+  final Map<int, bool> _raisedHands = {}; // Remote hand status
 
   int? _dataStreamId;
   final ClientRoleType _fixedRole = ClientRoleType.clientRoleBroadcaster;
@@ -166,14 +166,18 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
             final message = String.fromCharCodes(data);
 
             if (message.startsWith('NAME:')) {
-              // Extracts the name after 'NAME:' and updates the map
               final remoteName = message.substring(5);
               setState(() {
                 _userNames[remoteUid] = remoteName;
               });
               _refreshParticipantsList();
+            } else if (message.startsWith('HAND:')) {
+              // NEW: Handle incoming hand status message
+              final isRaised = message.substring(5) == 'RAISED';
+              setState(() => _raisedHands[remoteUid] = isRaised);
+              if (!isRaised) _raisedHands.remove(remoteUid);
+              _refreshParticipantsList();
             } else if (message == 'END_MEETING') {
-              // Handle host ending the call for everyone
               _handleRemoteEndCall();
             }
           }
@@ -199,7 +203,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     );
   }
 
-  // FIX: _sendName method is now correctly defined with a closing brace.
   void _sendName() {
     if (_engine != null && _dataStreamId != null) {
       final message = 'NAME:${widget.userName}';
@@ -207,7 +210,21 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       _engine!.sendStreamMessage(
         streamId: _dataStreamId!,
         data: data,
-        length: data.length, // FIX: Corrected length argument
+        length: data.length,
+      );
+    }
+  }
+
+  // NEW: Function to send hand status via data stream
+  void _sendHandStatus(bool isRaised) {
+    if (_engine != null && _dataStreamId != null) {
+      final status = isRaised ? 'RAISED' : 'LOWERED';
+      final message = 'HAND:$status';
+      final data = Uint8List.fromList(message.codeUnits);
+      _engine!.sendStreamMessage(
+        streamId: _dataStreamId!,
+        data: data,
+        length: data.length,
       );
     }
   }
@@ -230,14 +247,18 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     setState(() => _isScreenSharing = !_isScreenSharing);
   }
 
+  // FIX: Updated _toggleHand to send status via Data Stream
   void _toggleHand() {
     if (!widget.isHost) {
       setState(() => _isHandRaised = !_isHandRaised);
-      // Logic for sending hand status via data stream (if implemented)
+
+      // Update local map and send signal
       if (_isHandRaised) {
         _raisedHands[_localUid] = true;
+        _sendHandStatus(true);
       } else {
         _raisedHands.remove(_localUid);
+        _sendHandStatus(false);
       }
       _refreshParticipantsList();
     }
@@ -280,7 +301,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     }
   }
 
-  // FIX: Added assumed missing handler for remote end call
   void _handleRemoteEndCall() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -320,7 +340,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                   final message = 'END_MEETING';
                   final data = Uint8List.fromList(message.codeUnits);
 
-                  // FIX: Corrected length parameter to data.length
                   _engine!.sendStreamMessage(
                     streamId: _dataStreamId!,
                     data: data,

@@ -49,143 +49,110 @@ class _VideoGridState extends State<VideoGrid> {
     _pinnedUid = widget.localUid;
   }
 
-  void _onTapVideo(int uid) {
+  void _togglePin(int uid) {
     setState(() {
-      _pinnedUid = uid;
+      _pinnedUid = (_pinnedUid == uid) ? widget.localUid : uid;
     });
   }
 
   Widget _videoTile({
     required int uid,
     required bool isLocal,
-    double borderRadius = 12,
+    double borderRadius = 12.0,
   }) {
-    final String userName = widget.userNames[uid] ?? 'User $uid';
-    final String displayName = isLocal ? '$userName (You)' : userName;
-
-    final bool isMuted = isLocal
-        ? widget.isMicMuted
-        : (widget.remoteMuteStatus[uid]?['audio'] ?? false);
-    final bool isCameraOff = isLocal
+    final bool isVideoMuted = isLocal
         ? widget.isCameraOff
-        : (widget.remoteMuteStatus[uid]?['video'] ?? false);
-    final bool isHandRaised = widget.raisedHands[uid] ?? false;
-
-    final bool isBroadcaster =
-        isLocal ||
-        (widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster);
-    final bool isActiveSpeaker = widget.activeSpeakerUid == uid;
-
-    final Color borderColor = isActiveSpeaker
-        ? const Color(0xFF4A90E2)
-        : Colors.transparent;
+        : widget.remoteMuteStatus[uid]?['video'] ?? false;
+    final bool isAudioMuted = isLocal
+        ? widget.isMicMuted
+        : widget.remoteMuteStatus[uid]?['audio'] ?? false;
+    final String name = widget.userNames[uid] ?? 'User $uid';
+    final bool isSpeaking = uid == widget.activeSpeakerUid;
+    final bool isHandRaised = widget.raisedHands[uid] ?? false; // Check hand status
 
     return GestureDetector(
-      onTap: () => _onTapVideo(uid),
+      onTap: () => _togglePin(uid),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(color: borderColor, width: 3.0),
+          border: isSpeaking
+              ? Border.all(color: Colors.blueAccent, width: 3.0)
+              : Border.all(color: Colors.transparent, width: 0),
+          color: const Color(0xFF1E1E1E),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(borderRadius),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (isBroadcaster && !isCameraOff && widget.engine != null)
-                isLocal
-                    ? agora.AgoraVideoView(
-                        controller: agora.VideoViewController(
-                          rtcEngine: widget.engine!,
-                          canvas: const agora.VideoCanvas(uid: 0),
-                        ),
-                      )
-                    : agora.AgoraVideoView(
-                        controller: agora.VideoViewController.remote(
-                          rtcEngine: widget.engine!,
-                          canvas: agora.VideoCanvas(uid: uid),
-                          connection: agora.RtcConnection(
-                            channelId: widget.channelName,
-                          ),
-                        ),
-                      )
-              else
-                Container(
-                  color: Colors.black,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.videocam_off,
-                          color: Colors.white,
-                          size: 40,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          displayName,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
+        clipBehavior: Clip.hardEdge,
+        child: Stack(
+          children: [
+            // Video Surface
+            if (!isVideoMuted)
+              agora.AgoraVideoView(
+                controller: agora.VideoViewController(
+                  rtcEngine: widget.engine!,
+                  canvas: agora.VideoCanvas(uid: isLocal ? 0 : uid),
                 ),
-
-              Align(
-                alignment: Alignment.bottomLeft,
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isMuted ? Icons.mic_off : Icons.mic,
-                        color: isMuted ? Colors.red : Colors.green,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-
-                      if (isHandRaised)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 8.0),
-                          child: Text('✋', style: TextStyle(fontSize: 20)),
-                        ),
-
-                      Flexible(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            displayName,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+              )
+            else
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.person, size: 50, color: Colors.white70),
+                    const SizedBox(height: 8),
+                    Text(
+                      name,
+                      style: const TextStyle(color: Colors.white70),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
 
-              if (widget.isHost && isLocal)
-                const Align(
-                  alignment: Alignment.topRight,
-                  child: Padding(
-                    padding: EdgeInsets.all(8.0),
-                    child: Icon(Icons.star, color: Colors.yellow, size: 20),
-                  ),
+            // User Info and Mute Status Overlay (Bottom Left)
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-            ],
-          ),
+                child: Row(
+                  children: [
+                    // Mute Icon
+                    Icon(
+                      isAudioMuted ? Icons.mic_off : Icons.mic,
+                      color: isAudioMuted ? Colors.red : Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    // Name
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // NEW: Raised Hand Indicator (Top Right)
+            if (isHandRaised)
+              const Positioned(
+                top: 8,
+                right: 8,
+                child: Icon(
+                  Icons.waving_hand,
+                  color: Colors.yellow,
+                  size: 24,
+                ),
+              ),
+          ],
         ),
       ),
     );
