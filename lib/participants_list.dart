@@ -1,5 +1,3 @@
-// participants_list.dart
-
 import 'package:flutter/material.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 
@@ -129,19 +127,16 @@ class ParticipantsList extends StatelessWidget {
                         child: Text('✋', style: TextStyle(fontSize: 20)),
                       ),
 
-                    // Audio Control Icon
                     _buildMuteButton(
                       icon: isAudioMuted ? Icons.mic_off : Icons.mic,
                       isMuted: isAudioMuted,
-                      isClickable: canToggle, // All users can click
+                      isClickable: canToggle,
                       onPressed: () {
-                        // The function in VideoCallScreen handles toggling local or remote stream
                         onToggleRemoteMic(uid, !isAudioMuted);
                       },
                     ),
                     const SizedBox(width: 8),
 
-                    // Video Control Icon
                     _buildMuteButton(
                       icon: isVideoMuted ? Icons.videocam_off : Icons.videocam,
                       isMuted: isVideoMuted,

@@ -71,7 +71,8 @@ class _VideoGridState extends State<VideoGrid> {
         : (widget.remoteMuteStatus[uid]?['video'] ?? false);
     final bool isHandRaised = widget.raisedHands[uid] ?? false;
 
-    final bool isBroadcaster = isLocal ||
+    final bool isBroadcaster =
+        isLocal ||
         (widget.remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster);
     final bool isActiveSpeaker = widget.activeSpeakerUid == uid;
 
@@ -84,35 +85,31 @@ class _VideoGridState extends State<VideoGrid> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(borderRadius),
-          border: Border.all(
-            color: borderColor,
-            width: 3.0,
-          ),
+          border: Border.all(color: borderColor, width: 3.0),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(borderRadius),
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // 1. Video View
               if (isBroadcaster && !isCameraOff && widget.engine != null)
                 isLocal
                     ? agora.AgoraVideoView(
-                  controller: agora.VideoViewController(
-                    rtcEngine: widget.engine!,
-                    canvas: const agora.VideoCanvas(uid: 0),
-                  ),
-                )
+                        controller: agora.VideoViewController(
+                          rtcEngine: widget.engine!,
+                          canvas: const agora.VideoCanvas(uid: 0),
+                        ),
+                      )
                     : agora.AgoraVideoView(
-                  controller: agora.VideoViewController.remote(
-                    rtcEngine: widget.engine!,
-                    canvas: agora.VideoCanvas(uid: uid),
-                    connection: agora.RtcConnection(
-                        channelId: widget.channelName),
-                  ),
-                )
+                        controller: agora.VideoViewController.remote(
+                          rtcEngine: widget.engine!,
+                          canvas: agora.VideoCanvas(uid: uid),
+                          connection: agora.RtcConnection(
+                            channelId: widget.channelName,
+                          ),
+                        ),
+                      )
               else
-              // 2. Camera Off Placeholder (Display Name is here)
                 Container(
                   color: Colors.black,
                   child: Center(
@@ -125,7 +122,6 @@ class _VideoGridState extends State<VideoGrid> {
                           size: 40,
                         ),
                         const SizedBox(height: 8),
-                        // Display the user's name
                         Text(
                           displayName,
                           style: const TextStyle(color: Colors.white),
@@ -135,7 +131,6 @@ class _VideoGridState extends State<VideoGrid> {
                   ),
                 ),
 
-              // 3. Name and Status Overlay (Always visible)
               Align(
                 alignment: Alignment.bottomLeft,
                 child: Padding(
@@ -143,7 +138,6 @@ class _VideoGridState extends State<VideoGrid> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Mute Icon
                       Icon(
                         isMuted ? Icons.mic_off : Icons.mic,
                         color: isMuted ? Colors.red : Colors.green,
@@ -151,26 +145,28 @@ class _VideoGridState extends State<VideoGrid> {
                       ),
                       const SizedBox(width: 8),
 
-                      // Hand Raised Icon
                       if (isHandRaised)
                         const Padding(
                           padding: EdgeInsets.only(right: 8.0),
                           child: Text('✋', style: TextStyle(fontSize: 20)),
                         ),
 
-                      // User Name
                       Flexible(
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black54,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            displayName, // Display the user's name
+                            displayName,
                             style: const TextStyle(
-                                color: Colors.white, fontSize: 14),
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -180,17 +176,12 @@ class _VideoGridState extends State<VideoGrid> {
                 ),
               ),
 
-              // Host Badge Overlay
               if (widget.isHost && isLocal)
                 const Align(
                   alignment: Alignment.topRight,
                   child: Padding(
                     padding: EdgeInsets.all(8.0),
-                    child: Icon(
-                      Icons.star,
-                      color: Colors.yellow,
-                      size: 20,
-                    ),
+                    child: Icon(Icons.star, color: Colors.yellow, size: 20),
                   ),
                 ),
             ],
@@ -199,7 +190,6 @@ class _VideoGridState extends State<VideoGrid> {
       ),
     );
   }
-  // --- END OF MODIFIED METHOD ---
 
   @override
   Widget build(BuildContext context) {
@@ -214,7 +204,6 @@ class _VideoGridState extends State<VideoGrid> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Main/Pinned Video
         Expanded(
           flex: 5,
           child: _videoTile(
@@ -225,7 +214,6 @@ class _VideoGridState extends State<VideoGrid> {
         ),
         if (smallUids.isNotEmpty) const SizedBox(height: 8),
 
-        // Small Video Grid (Horizontal Scroll)
         if (smallUids.isNotEmpty)
           SizedBox(
             height: 120,

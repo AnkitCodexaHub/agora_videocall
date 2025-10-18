@@ -53,7 +53,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     _initAgora();
   }
 
-
   Future<void> _initAgora() async {
     await [Permission.microphone, Permission.camera].request();
 
@@ -87,50 +86,50 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         },
         onRemoteAudioStateChanged:
             (connection, remoteUid, state, reason, elapsed) {
-          setState(() {
-            final isMuted =
-                state == RemoteAudioState.remoteAudioStateStopped;
-            _remoteMuteStatus[remoteUid] ??= {
-              'audio': false,
-              'video': false,
-            };
-            _remoteMuteStatus[remoteUid]!['audio'] = isMuted;
-          });
-        },
+              setState(() {
+                final isMuted =
+                    state == RemoteAudioState.remoteAudioStateStopped;
+                _remoteMuteStatus[remoteUid] ??= {
+                  'audio': false,
+                  'video': false,
+                };
+                _remoteMuteStatus[remoteUid]!['audio'] = isMuted;
+              });
+            },
         onRemoteVideoStateChanged:
             (connection, remoteUid, state, reason, elapsed) {
-          setState(() {
-            final isOff = state == RemoteVideoState.remoteVideoStateStopped;
-            _remoteMuteStatus[remoteUid] ??= {
-              'audio': false,
-              'video': false,
-            };
-            _remoteMuteStatus[remoteUid]!['video'] = isOff;
-          });
-        },
+              setState(() {
+                final isOff = state == RemoteVideoState.remoteVideoStateStopped;
+                _remoteMuteStatus[remoteUid] ??= {
+                  'audio': false,
+                  'video': false,
+                };
+                _remoteMuteStatus[remoteUid]!['video'] = isOff;
+              });
+            },
         onAudioVolumeIndication:
             (connection, speakers, totalVolume, deviceVolume) {
-          int? speakingUid;
+              int? speakingUid;
 
-          for (var speaker in speakers) {
-            final uid = speaker.uid == 0 ? _localUid : speaker.uid;
+              for (var speaker in speakers) {
+                final uid = speaker.uid == 0 ? _localUid : speaker.uid;
 
-            if (speaker.volume! > 5) {
-              speakingUid = uid;
-              break;
-            }
-          }
+                if (speaker.volume! > 5) {
+                  speakingUid = uid;
+                  break;
+                }
+              }
 
-          setState(() {
-            if (speakingUid != null && speakingUid != _activeSpeakerUid) {
-              _activeSpeakerUid = speakingUid;
-            } else if (speakingUid == null &&
-                _activeSpeakerUid != null &&
-                totalVolume < 5) {
-              _activeSpeakerUid = null;
-            }
-          });
-        },
+              setState(() {
+                if (speakingUid != null && speakingUid != _activeSpeakerUid) {
+                  _activeSpeakerUid = speakingUid;
+                } else if (speakingUid == null &&
+                    _activeSpeakerUid != null &&
+                    totalVolume < 5) {
+                  _activeSpeakerUid = null;
+                }
+              });
+            },
       ),
     );
 

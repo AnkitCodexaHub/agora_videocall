@@ -63,7 +63,7 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   final TextEditingController _channelController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  // Changed default value to false (unchecked)
+
   bool _isHost = false;
   bool _isJoining = false;
 
@@ -102,7 +102,10 @@ class _HomeState extends State<Home> {
       body: SafeArea(
         child: SingleChildScrollView(
           child: SizedBox(
-            height: MediaQuery.of(context).size.height - AppBar().preferredSize.height - MediaQuery.of(context).padding.top,
+            height:
+                MediaQuery.of(context).size.height -
+                AppBar().preferredSize.height -
+                MediaQuery.of(context).padding.top,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -116,7 +119,10 @@ class _HomeState extends State<Home> {
                         children: [
                           const Text(
                             'Join Agora Live Meeting',
-                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 32),
                           TextField(
@@ -135,19 +141,18 @@ class _HomeState extends State<Home> {
                             ),
                           ),
                           const SizedBox(height: 24),
-                          // START: Replaced Switch with Checkbox
                           Row(
                             mainAxisAlignment: MainAxisAlignment.start,
                             children: [
                               Checkbox(
                                 value: _isHost,
-                                onChanged: (val) => setState(() => _isHost = val ?? false),
+                                onChanged: (val) =>
+                                    setState(() => _isHost = val ?? false),
                                 activeColor: const Color(0xFFE4405F),
                               ),
                               const Text('Join as Host'),
                             ],
                           ),
-                          // END: Replaced Switch with Checkbox
                           const SizedBox(height: 24),
                           SizedBox(
                             width: double.infinity,
@@ -155,14 +160,14 @@ class _HomeState extends State<Home> {
                             child: ElevatedButton.icon(
                               icon: _isJoining
                                   ? Container(
-                                width: 20,
-                                height: 20,
-                                padding: const EdgeInsets.all(2),
-                                child: const CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
+                                      width: 20,
+                                      height: 20,
+                                      padding: const EdgeInsets.all(2),
+                                      child: const CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
                                   : const Icon(Icons.group, size: 24),
                               label: Text(
                                 _isJoining ? "Joining..." : "Join Meeting",

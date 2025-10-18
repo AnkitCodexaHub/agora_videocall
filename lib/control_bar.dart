@@ -35,11 +35,11 @@ class ControlBar extends StatelessWidget {
   });
 
   Widget _buildButton(
-      IconData icon,
-      Color color,
-      VoidCallback onPressed, {
-        Color iconColor = Colors.white,
-      }) {
+    IconData icon,
+    Color color,
+    VoidCallback onPressed, {
+    Color iconColor = Colors.white,
+  }) {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
@@ -56,7 +56,6 @@ class ControlBar extends StatelessWidget {
     List<Widget> buttons = [];
 
     if (isHost) {
-      // Host: Show ALL controls
       buttons.add(
         _buildButton(
           isMicMuted ? Icons.mic_off : Icons.mic,
@@ -77,7 +76,7 @@ class ControlBar extends StatelessWidget {
         buttons.add(
           _buildButton(
             Icons.flip_camera_ios,
-            Colors.white.withOpacity(0.2),
+            Colors.white.withValues(alpha: 0.2),
             onSwitchCamera,
           ),
         );
@@ -96,23 +95,22 @@ class ControlBar extends StatelessWidget {
       buttons.add(
         _buildButton(
           Icons.people,
-          Colors.white.withOpacity(0.2),
+          Colors.white.withValues(alpha: 0.2),
           onShowParticipants,
         ),
       );
 
       buttons.add(
-        _buildButton(Icons.share, Colors.white.withOpacity(0.2), onShare),
+        _buildButton(Icons.share, Colors.white.withValues(alpha: 0.2), onShare),
       );
     } else {
-      // Participant (Not Host): Show ONLY Raise Hand and End Call
       if (onToggleHand != null) {
         buttons.add(
           _buildButton(
             Icons.waving_hand,
             isHandRaised
                 ? Colors.yellow[700]!
-                : Colors.white.withOpacity(0.2),
+                : Colors.white.withValues(alpha: 0.2),
             onToggleHand!,
             iconColor: isHandRaised ? Colors.black : Colors.white,
           ),
@@ -120,7 +118,6 @@ class ControlBar extends StatelessWidget {
       }
     }
 
-    // End Call button is always added (last button)
     buttons.add(
       _buildButton(Icons.call_end, const Color(0xFFE4405F), onEndCall),
     );
@@ -138,10 +135,10 @@ class ControlBar extends StatelessWidget {
                 children: buttons
                     .map(
                       (widget) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: widget,
-                  ),
-                )
+                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                        child: widget,
+                      ),
+                    )
                     .toList(),
               ),
             ),
