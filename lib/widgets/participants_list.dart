@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import '../constants/app_colors.dart';
+import '../constants/app_constants.dart';
 
 class ParticipantsList extends StatelessWidget {
   final int localUid;
@@ -41,12 +43,14 @@ class ParticipantsList extends StatelessWidget {
     required VoidCallback onPressed,
     required bool isClickable,
   }) {
+    final color = isMuted ? AppColors.muted : AppColors.active;
+    
     if (!isClickable) {
-      return Icon(icon, color: isMuted ? Colors.red : Colors.green, size: 20);
+      return Icon(icon, color: color, size: 20);
     }
 
     return IconButton(
-      icon: Icon(icon, color: isMuted ? Colors.red : Colors.green, size: 20),
+      icon: Icon(icon, color: color, size: 20),
       onPressed: onPressed,
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(),
@@ -56,13 +60,12 @@ class ParticipantsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Combine local and remote UIDs
     final allUids = remoteUids.toList()..insert(0, localUid);
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
       decoration: const BoxDecoration(
-        color: Color(0xFF1E1E1E),
+        color: AppColors.surface,
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(24),
           topRight: Radius.circular(24),
@@ -77,15 +80,15 @@ class ParticipantsList extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  "Participants (${allUids.length})",
+                  'Participants (${allUids.length})',
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
+                  icon: const Icon(Icons.close, color: AppColors.textPrimary),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ],
@@ -98,8 +101,8 @@ class ParticipantsList extends StatelessWidget {
               itemBuilder: (context, index) {
                 final uid = allUids[index];
                 final isLocal = uid == localUid;
-                final isBroadcaster = remoteRoles[uid] == ClientRoleType.clientRoleBroadcaster;
-                final name = userNames[uid] ?? 'Participant $uid';
+                final name = userNames[uid] ??
+                    '${AppConstants.defaultParticipantNamePrefix} $uid';
 
                 final isAudioMuted = isLocal
                     ? isLocalMicMuted
@@ -108,15 +111,13 @@ class ParticipantsList extends StatelessWidget {
                     ? isLocalCameraOff
                     : remoteMuteStatus[uid]?['video'] ?? false;
 
-                final isHandRaised = raisedHands[uid] ?? false; // Check for raised hand status
+                final isHandRaised = raisedHands[uid] ?? false;
+                final canToggle = isHost && !isLocal;
 
-                // Only the host can toggle remote status
-                final bool canToggle = isHost && !isLocal;
-
-                Widget controls = Row(
+                final controls = Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Raised Hand Icon (✋)
+                    // Raised Hand Icon
                     if (isHandRaised)
                       const Padding(
                         padding: EdgeInsets.only(right: 8.0),
@@ -127,14 +128,9 @@ class ParticipantsList extends StatelessWidget {
                     _buildMuteButton(
                       icon: isAudioMuted ? Icons.mic_off : Icons.mic,
                       isMuted: isAudioMuted,
-                      isClickable: canToggle || isLocal, // Local user can toggle their own mic
+                      isClickable: canToggle || isLocal,
                       onPressed: () {
-                        // Pass local or remote status to the handler
-                        if (isLocal) {
-                          onToggleRemoteMic(uid, !isAudioMuted);
-                        } else if (canToggle) {
-                          onToggleRemoteMic(uid, !isAudioMuted);
-                        }
+                        onToggleRemoteMic(uid, !isAudioMuted);
                       },
                     ),
                     const SizedBox(width: 8),
@@ -143,14 +139,9 @@ class ParticipantsList extends StatelessWidget {
                     _buildMuteButton(
                       icon: isVideoMuted ? Icons.videocam_off : Icons.videocam,
                       isMuted: isVideoMuted,
-                      isClickable: canToggle || isLocal, // Local user can toggle their own camera
+                      isClickable: canToggle || isLocal,
                       onPressed: () {
-                        // Pass local or remote status to the handler
-                        if (isLocal) {
-                          onToggleRemoteCamera(uid, !isVideoMuted);
-                        } else if (canToggle) {
-                          onToggleRemoteCamera(uid, !isVideoMuted);
-                        }
+                        onToggleRemoteCamera(uid, !isVideoMuted);
                       },
                     ),
                   ],
@@ -159,13 +150,16 @@ class ParticipantsList extends StatelessWidget {
                 return ListTile(
                   leading: CircleAvatar(
                     backgroundColor: isHost && isLocal
-                        ? Colors.blue // Host's own avatar color
-                        : Colors.grey,
-                    child: Text(name.substring(0, 1), style: const TextStyle(color: Colors.white)),
+                        ? AppColors.avatarHost
+                        : AppColors.avatarDefault,
+                    child: Text(
+                      name.substring(0, 1).toUpperCase(),
+                      style: const TextStyle(color: AppColors.textPrimary),
+                    ),
                   ),
                   title: Text(
                     name + (isLocal ? ' (You)' : ''),
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     overflow: TextOverflow.ellipsis,
                   ),
                   trailing: controls,
@@ -178,3 +172,4 @@ class ParticipantsList extends StatelessWidget {
     );
   }
 }
+

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../constants/app_colors.dart';
+import '../constants/app_constants.dart';
 
 class ControlBar extends StatelessWidget {
   final bool isHost;
@@ -34,96 +36,121 @@ class ControlBar extends StatelessWidget {
     this.onToggleHand,
   });
 
-  Widget _buildButton(
-    IconData icon,
-    Color color,
-    VoidCallback onPressed, {
-    Color iconColor = Colors.white,
+  Widget _buildButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+    Color iconColor = AppColors.textPrimary,
   }) {
     return GestureDetector(
       onTap: onPressed,
       child: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        child: Icon(icon, color: iconColor, size: 24),
+        width: AppConstants.controlBarButtonSize,
+        height: AppConstants.controlBarButtonSize,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          color: iconColor,
+          size: AppConstants.controlBarIconSize,
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    List<Widget> buttons = [];
+    final List<Widget> buttons = [];
 
     if (isHost) {
+      // Mic button
       buttons.add(
         _buildButton(
-          isMicMuted ? Icons.mic_off : Icons.mic,
-          isMicMuted ? Colors.red : Colors.green,
-          onToggleMic,
+          icon: isMicMuted ? Icons.mic_off : Icons.mic,
+          color: isMicMuted ? AppColors.muted : AppColors.active,
+          onPressed: onToggleMic,
         ),
       );
 
+      // Camera button
       buttons.add(
         _buildButton(
-          isCameraOff ? Icons.videocam_off : Icons.videocam,
-          isCameraOff ? Colors.red : Colors.blue,
-          onToggleCamera,
+          icon: isCameraOff ? Icons.videocam_off : Icons.videocam,
+          color: isCameraOff ? AppColors.muted : AppColors.cameraActive,
+          onPressed: onToggleCamera,
         ),
       );
 
+      // Switch camera button (only when camera is on)
       if (!isCameraOff) {
         buttons.add(
           _buildButton(
-            Icons.flip_camera_ios,
-            Colors.white.withValues(alpha: 0.2),
-            onSwitchCamera,
+            icon: Icons.flip_camera_ios,
+            color: AppColors.overlayLight,
+            onPressed: onSwitchCamera,
           ),
         );
       }
 
+      // Screen share button (only for broadcasters)
       if (isLocalBroadcaster) {
         buttons.add(
           _buildButton(
-            isScreenSharing ? Icons.stop_screen_share : Icons.screen_share,
-            isScreenSharing ? Colors.red : Colors.blue,
-            onToggleScreenShare,
+            icon: isScreenSharing ? Icons.stop_screen_share : Icons.screen_share,
+            color: isScreenSharing ? AppColors.muted : AppColors.cameraActive,
+            onPressed: onToggleScreenShare,
           ),
         );
       }
 
+      // Participants list button
       buttons.add(
         _buildButton(
-          Icons.people,
-          Colors.white.withValues(alpha: 0.2),
-          onShowParticipants,
+          icon: Icons.people,
+          color: AppColors.overlayLight,
+          onPressed: onShowParticipants,
         ),
       );
 
+      // Share button
       buttons.add(
-        _buildButton(Icons.share, Colors.white.withValues(alpha: 0.2), onShare),
+        _buildButton(
+          icon: Icons.share,
+          color: AppColors.overlayLight,
+          onPressed: onShare,
+        ),
       );
     } else {
+      // Hand raise button (only for non-hosts)
       if (onToggleHand != null) {
         buttons.add(
           _buildButton(
-            Icons.waving_hand,
-            isHandRaised
-                ? Colors.yellow[700]!
-                : Colors.white.withValues(alpha: 0.2),
-            onToggleHand!,
-            iconColor: isHandRaised ? Colors.black : Colors.white,
+            icon: Icons.waving_hand,
+            color: isHandRaised ? AppColors.handRaisedDark : AppColors.overlayLight,
+            onPressed: onToggleHand!,
+            iconColor: isHandRaised ? Colors.black : AppColors.textPrimary,
           ),
         );
       }
     }
 
+    // End call button (always visible)
     buttons.add(
-      _buildButton(Icons.call_end, const Color(0xFFE4405F), onEndCall),
+      _buildButton(
+        icon: Icons.call_end,
+        color: AppColors.primary,
+        onPressed: onEndCall,
+      ),
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24.0, left: 16, right: 16),
+      padding: const EdgeInsets.only(
+        bottom: 24.0,
+        left: 16,
+        right: 16,
+      ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
@@ -148,3 +175,4 @@ class ControlBar extends StatelessWidget {
     );
   }
 }
+

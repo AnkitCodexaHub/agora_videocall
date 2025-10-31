@@ -1,39 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart' as agora;
+import '../constants/app_colors.dart';
+import '../constants/app_constants.dart';
 
 class VideoGrid extends StatefulWidget {
   final RtcEngine? engine;
   final int localUid;
-  final String channelName;
   final List<int> remoteUids;
-  final Map<int, ClientRoleType> remoteRoles;
   final Map<int, Map<String, bool>> remoteMuteStatus;
   final bool isLocalUserJoined;
   final bool isCameraOff;
   final bool isMicMuted;
   final Map<int, String> userNames;
   final Map<int, bool> raisedHands;
-  final Function(int uid, bool promote)? onRoleChange;
-  final bool isHost;
   final int? activeSpeakerUid;
 
   const VideoGrid({
     super.key,
     required this.engine,
     required this.localUid,
-    required this.channelName,
     required this.remoteUids,
-    required this.remoteRoles,
     required this.remoteMuteStatus,
     required this.isLocalUserJoined,
     required this.isCameraOff,
     required this.isMicMuted,
     required this.userNames,
     required this.raisedHands,
-    required this.isHost,
     required this.activeSpeakerUid,
-    this.onRoleChange,
   });
 
   @override
@@ -55,20 +49,21 @@ class _VideoGridState extends State<VideoGrid> {
     });
   }
 
-  Widget _videoTile({
+  Widget _buildVideoTile({
     required int uid,
     required bool isLocal,
-    double borderRadius = 12.0,
+    double borderRadius = AppConstants.videoTileBorderRadius,
   }) {
-    final bool isVideoMuted = isLocal
+    final isVideoMuted = isLocal
         ? widget.isCameraOff
         : widget.remoteMuteStatus[uid]?['video'] ?? false;
-    final bool isAudioMuted = isLocal
+    final isAudioMuted = isLocal
         ? widget.isMicMuted
         : widget.remoteMuteStatus[uid]?['audio'] ?? false;
-    final String name = widget.userNames[uid] ?? 'User $uid';
-    final bool isSpeaking = uid == widget.activeSpeakerUid;
-    final bool isHandRaised = widget.raisedHands[uid] ?? false; // Check hand status
+    final name = widget.userNames[uid] ??
+        '${AppConstants.defaultParticipantNamePrefix} $uid';
+    final isSpeaking = uid == widget.activeSpeakerUid;
+    final isHandRaised = widget.raisedHands[uid] ?? false;
 
     return GestureDetector(
       onTap: () => _togglePin(uid),
@@ -76,9 +71,9 @@ class _VideoGridState extends State<VideoGrid> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(borderRadius),
           border: isSpeaking
-              ? Border.all(color: Colors.blueAccent, width: 3.0)
+              ? Border.all(color: AppColors.speaking, width: 3.0)
               : Border.all(color: Colors.transparent, width: 0),
-          color: const Color(0xFF1E1E1E),
+          color: AppColors.surface,
         ),
         clipBehavior: Clip.hardEdge,
         child: Stack(
@@ -96,59 +91,69 @@ class _VideoGridState extends State<VideoGrid> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.person, size: 50, color: Colors.white70),
+                    const Icon(
+                      Icons.person,
+                      size: 50,
+                      color: AppColors.textSecondary,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       name,
-                      style: const TextStyle(color: Colors.white70),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-
-            // User Info and Mute Status Overlay (Bottom Left)
-            Positioned(
-              left: 8,
-              bottom: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    // Mute Icon
-                    Icon(
-                      isAudioMuted ? Icons.mic_off : Icons.mic,
-                      color: isAudioMuted ? Colors.red : Colors.white,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    // Name
-                    Text(
-                      name,
                       style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
+
+            // User Info Overlay (Bottom Left)
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.overlayDark,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isAudioMuted ? Icons.mic_off : Icons.mic,
+                      color: isAudioMuted ? AppColors.muted : AppColors.textPrimary,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        name,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
 
-            // NEW: Raised Hand Indicator (Top Right)
+            // Raised Hand Indicator (Top Right)
             if (isHandRaised)
               const Positioned(
                 top: 8,
                 right: 8,
                 child: Icon(
                   Icons.waving_hand,
-                  color: Colors.yellow,
+                  color: AppColors.handRaised,
                   size: 24,
                 ),
               ),
@@ -164,26 +169,25 @@ class _VideoGridState extends State<VideoGrid> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final List<int> allUids = [widget.localUid, ...widget.remoteUids];
-    final int pinnedUid = _pinnedUid;
-    List<int> smallUids = allUids.where((uid) => uid != pinnedUid).toList();
+    final allUids = [widget.localUid, ...widget.remoteUids];
+    final pinnedUid = _pinnedUid;
+    final smallUids = allUids.where((uid) => uid != pinnedUid).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
           flex: 5,
-          child: _videoTile(
+          child: _buildVideoTile(
             uid: pinnedUid,
             isLocal: pinnedUid == widget.localUid,
             borderRadius: 0,
           ),
         ),
         if (smallUids.isNotEmpty) const SizedBox(height: 8),
-
         if (smallUids.isNotEmpty)
           SizedBox(
-            height: 120,
+            height: AppConstants.smallVideoTileSize,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: smallUids.length,
@@ -192,9 +196,9 @@ class _VideoGridState extends State<VideoGrid> {
                 return Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4.0),
                   child: SizedBox(
-                    width: 120,
-                    height: 120,
-                    child: _videoTile(
+                    width: AppConstants.smallVideoTileSize,
+                    height: AppConstants.smallVideoTileSize,
+                    child: _buildVideoTile(
                       uid: uid,
                       isLocal: uid == widget.localUid,
                     ),
@@ -207,3 +211,4 @@ class _VideoGridState extends State<VideoGrid> {
     );
   }
 }
+
