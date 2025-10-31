@@ -84,6 +84,12 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     });
 
     _userJoinedSubscription = _agoraService.userJoined.listen((remoteUid) {
+      // Ensure we subscribe to remote audio/video when user joins
+      if (_agoraService.engine != null) {
+        // Explicitly subscribe to remote audio and video streams
+        _agoraService.engine!.muteRemoteAudioStream(uid: remoteUid, mute: false);
+        _agoraService.engine!.muteRemoteVideoStream(uid: remoteUid, mute: false);
+      }
       setState(() {
         _remoteUids.add(remoteUid);
         _remoteMuteStatus[remoteUid] = {'audio': false, 'video': false};
@@ -206,9 +212,11 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       await _toggleMic();
       return;
     }
-    if (widget.isHost) {
+    // Allow host to control remote participants, or allow local user to control themselves
+    if (widget.isHost || uid == _agoraService.localUid) {
       await _agoraService.toggleRemoteMicrophone(uid, isMuted);
       setState(() {
+        _remoteMuteStatus[uid] ??= {'audio': false, 'video': false};
         _remoteMuteStatus[uid]!['audio'] = isMuted;
       });
       _refreshParticipantsList();
@@ -220,9 +228,11 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       await _toggleCamera();
       return;
     }
-    if (widget.isHost) {
+    // Allow host to control remote participants, or allow local user to control themselves
+    if (widget.isHost || uid == _agoraService.localUid) {
       await _agoraService.toggleRemoteCamera(uid, isOff);
       setState(() {
+        _remoteMuteStatus[uid] ??= {'audio': false, 'video': false};
         _remoteMuteStatus[uid]!['video'] = isOff;
       });
       _refreshParticipantsList();
@@ -358,7 +368,6 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       body: Column(
         children: [
           Expanded(
-            flex: 5,
             child: Padding(
               padding: const EdgeInsets.only(bottom: 15.0),
               child: VideoGrid(
@@ -372,6 +381,9 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                 userNames: _userNames,
                 raisedHands: _raisedHands,
                 activeSpeakerUid: _activeSpeakerUid,
+                isHost: widget.isHost,
+                onToggleRemoteMic: _toggleRemoteMic,
+                onToggleRemoteCamera: _toggleRemoteCamera,
               ),
             ),
           ),

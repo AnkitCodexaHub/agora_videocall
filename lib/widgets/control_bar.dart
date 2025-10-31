@@ -123,6 +123,36 @@ class ControlBar extends StatelessWidget {
         ),
       );
     } else {
+      // For non-hosts, show mic and camera controls for themselves
+      // Mic button
+      buttons.add(
+        _buildButton(
+          icon: isMicMuted ? Icons.mic_off : Icons.mic,
+          color: isMicMuted ? AppColors.muted : AppColors.active,
+          onPressed: onToggleMic,
+        ),
+      );
+
+      // Camera button
+      buttons.add(
+        _buildButton(
+          icon: isCameraOff ? Icons.videocam_off : Icons.videocam,
+          color: isCameraOff ? AppColors.muted : AppColors.cameraActive,
+          onPressed: onToggleCamera,
+        ),
+      );
+
+      // Switch camera button (only when camera is on)
+      if (!isCameraOff) {
+        buttons.add(
+          _buildButton(
+            icon: Icons.flip_camera_ios,
+            color: AppColors.overlayLight,
+            onPressed: onSwitchCamera,
+          ),
+        );
+      }
+
       // Hand raise button (only for non-hosts)
       if (onToggleHand != null) {
         buttons.add(
