@@ -28,7 +28,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   // NOTE: Replace with your actual token generation logic in a production app
   static const String appId = "2264731781464d4e8764ce1c02be1c46";
   static const String token =
-      "007eJxTYLj8ar9N3JtuMe713pxVp7cb3lH4ae71ckkQc4vFtMBz84MUGIyMzEzMjQ3NLQxNzExSTFItzM1MklMNkw2MkoCkiZlV/OeMhkBGhk+pOUyMDBAI4rMwlKQWlzAwAAAuXx7+";
+      "007eJxTYCh+ZdE7K6Ux7smTakb+Hzu3Vz/W5+G1Wf1ktdDi5JgkbysFBiMjMxNzY0NzC0MTM5MUk1QLczOT5FTDZAOjJCBpYnbJnCWzIZCRwa7Ki5GRAQJBfBaGktTiEgYGAPVCHVc=";
 
   final int _localUid = Random().nextInt(1000000);
   RtcEngine? _engine;
